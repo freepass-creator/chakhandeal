@@ -1,18 +1,33 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { hyphenPhone, fmtBirth } from "@/lib/format";
-import { CARRIERS } from "@/lib/constants";
+import { CARRIERS, DEMO_MODE } from "@/lib/constants";
+import { requestPhoneCode, verifyPhoneCode } from "@/lib/kyc/phoneProvider";
+import { DEMO_USERS, DEMO_IMG, demoVerified } from "@/lib/demo";
 import StepFooter from "@/components/StepFooter";
 import CameraCapture from "@/components/CameraCapture";
 import Icon from "@/components/Icon";
 
-// 본인확인 — 담당자 링크로 손님이 직접. (대면 본인확인 수준)
-// ① 신분증 '촬영' → Gemini OCR(이름·생년월일) → "맞으세요?" → (틀리면 직접 입력)
-// ② 본인 얼굴 '촬영'(셀카) → 신분증과 대조용
-// 저장된 사진 업로드 불가 — 그 자리에서 촬영만.
+/** 본인확인 내부 단계 → 진행바 (4칸) */
+export function authProgress(stage) {
+  switch (stage) {
+    case "method": return { step: 1, label: "방법" };
+    case "idcam":
+    case "ocr":
+    case "phone": return { step: 2, label: "인증" };
+    case "review":
+    case "manual":
+    case "phonecode": return { step: 3, label: "확인" };
+    case "selfie":
+    case "done": return { step: 4, label: "완료" };
+    default: return { step: 1, label: "방법" };
+  }
+}
+
+// 본인확인 — onProgress로 헤더 진행바 연동
 // onVerified({ name, birth(6), phone, method, idImage, faceImage })
-export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
+export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onProgress = null }) {
   // method=방법 선택 | (신분증) idcam·ocr·review·manual·selfie | (휴대폰) phone·phonecode | done
   const [stage, setStage] = useState("method");
   const [ocrUsed, setOcrUsed] = useState(false);
@@ -20,11 +35,18 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
   const [a, setA] = useState({ name: "", birth: "", phone: "" });
   const [carrier, setCarrier] = useState("");
   const [code, setCode] = useState("");
+  const [phoneTxId, setPhoneTxId] = useState("");
   const [idImage, setIdImage] = useState("");
   const [faceImage, setFaceImage] = useState("");
   const set = (k) => (e) => setA((s) => ({ ...s, [k]: e.target.value }));
   const setPhone = (e) => setA((s) => ({ ...s, phone: hyphenPhone(e.target.value) }));
   const camRef = useRef(null);
+  const progressRef = useRef(onProgress);
+  progressRef.current = onProgress;
+
+  useEffect(() => {
+    progressRef.current?.(authProgress(stage));
+  }, [stage]);
 
   async function runOcr() {
     if (!idImage) return;
@@ -59,10 +81,18 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
       faceImage,
     }), 600);
   }
-  // 휴대폰 본인인증 — 연동 전 mock. 나중에 PASS/통신사 API만 끼우면 됨.
+  // 휴대폰 본인인증 — phoneProvider stub. PASS/통신사 연동 시 해당 모듈만 교체.
   const phoneFormOk = a.name.trim() && a.birth.replace(/\D/g, "").length >= 6 && carrier && phoneOk;
-  function finishPhone() {
-    if (code.length !== 6) { alert("인증번호 6자리를 입력해 주세요."); return; }
+  async function startPhoneCode() {
+    const res = await requestPhoneCode({ phone: a.phone, name: a.name.trim(), birth: a.birth, carrier });
+    if (!res.ok) { alert(res.error || "인증번호 요청 실패"); return; }
+    setPhoneTxId(res.txId || "");
+    setCode("");
+    setStage("phonecode");
+  }
+  async function finishPhone() {
+    const res = await verifyPhoneCode({ txId: phoneTxId, code });
+    if (!res.ok) { alert(res.error || "인증 실패"); return; }
     setStage("done");
     setTimeout(() => onVerified({
       name: a.name.trim(),
@@ -73,8 +103,6 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
       faceImage: "",
     }), 600);
   }
-
-  const linkBtn = { background: "none", border: "none", color: "#0f7f5b", fontWeight: 700, fontSize: 13, textDecoration: "underline", cursor: "pointer", padding: "8px 0 0", display: "block", margin: "10px auto 0" };
 
   if (stage === "ocr" || stage === "done")
     return (
@@ -89,16 +117,33 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
       <>
         <div className="c-body anim-in" key={stage}>
           <div className="slabel">본인확인</div>
-          <div className="stitle">본인확인 방법을 선택하세요</div>
-          <div className="sdesc">요청하신 방식에 맞춰 본인확인을 진행합니다.</div>
-          <button type="button" className="auth-opt" onClick={() => { setOcrFail(false); setStage("idcam"); }}>
-            <span className="ic" style={{ background: "var(--navy)" }}><Icon name="file" size={18} /></span>
-            <span style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>신분증으로 인증<span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)" }}>신분증 촬영 + 얼굴 촬영 · 온라인 대면</span></span>
+          <div className="stitle">본인확인을 진행해 주세요</div>
+          <div className="sdesc">신분증과 얼굴을 촬영하면 온라인 대면으로 본인확인이 됩니다. 권장 방식입니다.</div>
+          <button type="button" className="auth-opt rec" onClick={() => { setOcrFail(false); setStage("idcam"); }}>
+            <span className="ic id"><Icon name="file" size={18} /></span>
+            <span className="tx">신분증으로 인증<small>신분증 촬영 + 얼굴 촬영 · 온라인 대면 · 권장</small></span>
+            <span className="arr">›</span>
           </button>
           <button type="button" className="auth-opt" onClick={() => setStage("phone")}>
-            <span className="ic" style={{ background: "var(--safe)" }}><Icon name="phone" size={18} /></span>
-            <span style={{ display: "flex", flexDirection: "column", gap: 2, textAlign: "left" }}>휴대폰으로 인증<span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)" }}>PASS·통신사 본인확인 <b style={{ color: "var(--warn)" }}>· 연동 예정</b></span></span>
+            <span className="ic phone"><Icon name="phone" size={18} /></span>
+            <span className="tx">휴대폰으로 인증<small>PASS·통신사 · 연동 예정 · 보조</small></span>
+            <span className="arr">›</span>
           </button>
+          {DEMO_MODE && (
+            <>
+              <div className="demo-hint" style={{ marginTop: 14 }}>시연용 — 카메라 없이 샘플로 통과할 수 있어요.</div>
+              <div className="demo-chips">
+                <button type="button" className="demo-chip safe" onClick={() => {
+                  setStage("done");
+                  setTimeout(() => onVerified(demoVerified("clean")), 400);
+                }}>{DEMO_USERS.clean.label}</button>
+                <button type="button" className="demo-chip" onClick={() => {
+                  setStage("done");
+                  setTimeout(() => onVerified(demoVerified("hit")), 400);
+                }}>{DEMO_USERS.hit.label}</button>
+              </div>
+            </>
+          )}
           {supportHelp}
         </div>
         <StepFooter prev={{ onClick: onCancel }} />
@@ -109,19 +154,28 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
     return (
       <>
         <div className="c-body anim-in" key={stage} style={{ display: "flex", flexDirection: "column", paddingBottom: 6 }}>
-          <div className="slabel">STEP 1 · 신분증 촬영</div>
+          <div className="slabel">신분증 촬영</div>
           <div className="stitle">신분증을 촬영해 주세요</div>
-          <div className="sdesc" style={{ marginBottom: 10 }}>가로 틀에 맞춰 촬영하면 이름·생년월일을 자동으로 읽어요. 신분증 촬영은 본인확인에 꼭 필요합니다.</div>
+          <div className="sdesc" style={{ marginBottom: 10 }}>가로 틀에 맞춰 촬영하면 이름·생년월일을 자동으로 읽어요. 본인확인의 핵심 단계입니다.</div>
           {ocrFail && (
-            <div style={{ background: "var(--danger50)", border: "1px solid #f1cdc8", color: "var(--danger)", borderRadius: "var(--radius)", padding: "10px 13px", fontSize: 12.5, fontWeight: 600, lineHeight: 1.55, marginBottom: 10 }}>
+            <div className="alert-box danger">
               글자가 또렷하게 읽히지 않았어요. 빛 반사 없이 가로 틀에 꽉 차게 다시 촬영해 주세요.
             </div>
           )}
           <div style={{ flex: 1, minHeight: 200 }}>
             <CameraCapture ref={camRef} facing="environment" max={1100} onCapture={(u) => { setIdImage(u); if (u) setOcrFail(false); }} guide="신분증을 가로 틀에 꽉 차게" />
           </div>
+          {DEMO_MODE && !idImage && (
+            <button type="button" className="text-link" onClick={() => {
+              const u = DEMO_USERS.clean;
+              setIdImage(DEMO_IMG);
+              setA({ name: u.name, birth: u.birth, phone: u.phone });
+              setOcrFail(false);
+              setStage("manual");
+            }}>카메라 없이 샘플로 진행</button>
+          )}
         </div>
-        <StepFooter prev={{ onClick: () => { setOcrFail(false); setStage("method"); } }} next={idImage ? { label: "다음", onClick: runOcr } : { label: "● 촬영", onClick: () => camRef.current?.capture() }} />
+        <StepFooter prev={{ onClick: () => { setOcrFail(false); setStage("method"); } }} next={idImage ? { label: "다음", onClick: runOcr } : { label: "● 촬영", onClick: () => { if (!camRef.current?.capture()) alert("카메라가 준비되면 다시 눌러 주세요."); } }} />
       </>
     );
 
@@ -129,7 +183,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
-          <div className="slabel">STEP 1 · 정보 확인</div>
+          <div className="slabel">정보 확인</div>
           <div className="stitle">이 정보가 맞으세요?</div>
           <div className="sdesc">신분증에서 읽은 내용이에요. 다르면 아래 ‘직접 입력’으로 고쳐 주세요.</div>
           <div className="verified">
@@ -137,7 +191,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
             <div className="info"><span>이름 <b>{a.name || "—"}</b></span><span>생년월일 {a.birth ? fmtBirth(a.birth) : "—"}</span></div>
           </div>
           <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
-          <button type="button" style={linkBtn} onClick={() => setStage("manual")}>정보가 다른가요? 직접 입력하기</button>
+          <button type="button" className="text-link" onClick={() => setStage("manual")}>정보가 다른가요? 직접 입력하기</button>
         </div>
         <StepFooter prev={{ onClick: () => { setIdImage(""); setStage("idcam"); } }} next={{ label: "네, 맞습니다", disabled: !allOk, onClick: toSelfie }} />
       </>
@@ -147,7 +201,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
-          <div className="slabel">STEP 1 · {ocrUsed ? "정보 보정" : "정보 입력"}</div>
+          <div className="slabel">{ocrUsed ? "정보 보정" : "정보 입력"}</div>
           <div className="stitle">{ocrUsed ? "잘못 읽힌 부분을 고쳐 주세요" : "이름·생년월일을 입력해 주세요"}</div>
           <div className="sdesc">{ocrUsed
             ? "신분증에서 읽은 정보예요. 다른 부분만 신분증과 동일하게 고쳐 주세요."
@@ -155,7 +209,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
           <div className="field"><label>이름</label><input value={a.name} onChange={set("name")} placeholder="홍길동" /></div>
           <div className="field"><label>생년월일 6자리</label><input value={a.birth} onChange={set("birth")} inputMode="numeric" maxLength={6} placeholder="900715" /></div>
           <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
-          {!ocrUsed && <button type="button" style={linkBtn} onClick={() => { setOcrFail(false); setIdImage(""); setStage("idcam"); }}>신분증을 다시 촬영할게요</button>}
+          {!ocrUsed && <button type="button" className="text-link" onClick={() => { setOcrFail(false); setIdImage(""); setStage("idcam"); }}>신분증을 다시 촬영할게요</button>}
           {supportHelp}
         </div>
         <StepFooter prev={{ onClick: () => { if (!ocrUsed) setIdImage(""); setOcrFail(false); setStage(ocrUsed ? "review" : "idcam"); } }} next={{ label: "다음", disabled: !allOk, onClick: toSelfie }} />
@@ -169,13 +223,22 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
           <div className="slabel">휴대폰 본인인증</div>
           <div className="stitle">휴대폰으로 본인인증</div>
           <div className="sdesc">통신사 본인확인으로 인증합니다.</div>
-          <div className="demo-hint">연동 예정 — 지금은 데모예요. 인증번호는 아무 6자리나 넣으면 통과됩니다.</div>
+          <div className="demo-hint">시연용 — PASS 연동 전입니다. 아래 샘플로 채운 뒤, 인증번호는 아무 6자리나 넣으면 됩니다.</div>
+          {DEMO_MODE && (
+            <div className="demo-chips">
+              <button type="button" className="demo-chip safe" onClick={() => {
+                const u = DEMO_USERS.clean;
+                setA({ name: u.name, birth: u.birth, phone: u.phone });
+                setCarrier(CARRIERS[0] || "SKT");
+              }}>샘플 채우기</button>
+            </div>
+          )}
           <div className="field"><label>이름</label><input value={a.name} onChange={set("name")} placeholder="홍길동" /></div>
           <div className="field"><label>생년월일 6자리</label><input value={a.birth} onChange={set("birth")} inputMode="numeric" maxLength={6} placeholder="900715" /></div>
           <div className="field"><label>통신사</label><select value={carrier} onChange={(e) => setCarrier(e.target.value)}><option value="">선택</option>{CARRIERS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
           <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
         </div>
-        <StepFooter prev={{ onClick: () => setStage("method") }} next={{ label: "인증번호 요청", disabled: !phoneFormOk, onClick: () => { setCode(""); setStage("phonecode"); } }} />
+        <StepFooter prev={{ onClick: () => setStage("method") }} next={{ label: "인증번호 요청", disabled: !phoneFormOk, onClick: startPhoneCode }} />
       </>
     );
 
@@ -185,9 +248,14 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
         <div className="c-body anim-in" key={stage}>
           <div className="slabel">휴대폰 본인인증</div>
           <div className="stitle">인증번호 입력</div>
-          <div className="sdesc"><b>{a.phone}</b> 로 보낸 6자리 인증번호를 입력하세요.</div>
+          <div className="sdesc">시연용 인증번호 6자리를 입력하세요. (실제 문자는 발송되지 않습니다)</div>
           <div className="field"><label>인증번호</label><input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="000000" /></div>
-          <button type="button" style={linkBtn} onClick={() => setStage("phone")}>번호가 안 왔나요? 다시 요청</button>
+          {DEMO_MODE && (
+            <div className="demo-chips">
+              <button type="button" className="demo-chip" onClick={() => setCode("123456")}>샘플 123456</button>
+            </div>
+          )}
+          <button type="button" className="text-link" onClick={startPhoneCode}>번호가 안 왔나요? 다시 요청</button>
         </div>
         <StepFooter prev={{ onClick: () => setStage("phone") }} next={{ label: "인증 완료", disabled: code.length !== 6, onClick: finishPhone }} />
       </>
@@ -197,14 +265,17 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null }) {
   return (
     <>
       <div className="c-body anim-in" key={stage} style={{ display: "flex", flexDirection: "column", paddingBottom: 6 }}>
-        <div className="slabel">STEP 2 · 본인 얼굴</div>
+        <div className="slabel">얼굴 촬영</div>
         <div className="stitle">본인 얼굴을 촬영해 주세요</div>
-        <div className="sdesc" style={{ marginBottom: 10 }}>신분증 사진과 같은 사람인지 확인합니다. 얼굴을 틀 안에 맞춰 주세요.</div>
+        <div className="sdesc" style={{ marginBottom: 10 }}>신분증과 같은 사람인지 확인합니다. 얼굴을 틀 안에 맞춰 주세요.</div>
         <div style={{ flex: 1, minHeight: 200 }}>
           <CameraCapture ref={camRef} facing="user" max={720} onCapture={setFaceImage} guide="얼굴을 틀 안에 맞춰 주세요" />
         </div>
+        {DEMO_MODE && !faceImage && (
+          <button type="button" className="text-link" onClick={() => setFaceImage(DEMO_IMG)}>카메라 없이 샘플 얼굴</button>
+        )}
       </div>
-      <StepFooter prev={{ onClick: () => setStage(ocrUsed ? "review" : "manual") }} next={faceImage ? { label: "본인확인 완료", onClick: finish } : { label: "● 촬영", onClick: () => camRef.current?.capture() }} />
+      <StepFooter prev={{ onClick: () => setStage(ocrUsed ? "review" : "manual") }} next={faceImage ? { label: "본인확인 완료", onClick: finish } : { label: "● 촬영", onClick: () => { if (!camRef.current?.capture()) alert("카메라가 준비되면 다시 눌러 주세요."); } }} />
     </>
   );
 }

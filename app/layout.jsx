@@ -37,7 +37,9 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <PWARegister />
-        {children}
+        <div className="device">
+          {children}
+        </div>
       </body>
     </html>
   );

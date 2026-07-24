@@ -1,13 +1,19 @@
 rules_version = '2';
-// 착한거래 Firebase Storage 보안 규칙 (실서비스)
-//  - 회원사 서류(사업자등록증·대표자 신분증): 본인(uid) 경로에만 쓰기
-//  - 읽기는 인증 사용자(관리자 승인 화면). 단, getDownloadURL 토큰은 별도로 접근을 허용함.
+// RentSafe Pro Storage
+//  - members/{uid}/** : 회원 본인 쓰기, 인증 사용자 읽기
+//  - consent_photos/** : 서버(Admin SDK) 업로드 전제 → 클라이언트 직접 write 금지
 service firebase.storage {
   match /b/{bucket}/o {
     match /members/{uid}/{file=**} {
       allow write: if request.auth != null && request.auth.uid == uid
                    && request.resource.size < 8 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*|application/pdf');
+      allow read: if request.auth != null;
+    }
+
+    match /consent_photos/{consentId}/{file=**} {
+      allow write: if false;
+      // 다운로드 URL 토큰이 있으면 토큰으로 접근. 규칙상 인증 회원만 list/get.
       allow read: if request.auth != null;
     }
   }

@@ -1,7 +1,10 @@
-// 단계형/인증 화면 공용 헤더 — 네이비 c-head(BI 로고 + 착한거래 + 제목 + 부제) + 선택적 스텝바.
+// 단계형/인증 화면 공용 헤더 — BI + 제목 + 연동되는 스텝바(+선택 라벨)
 import BrandMark from "@/components/BrandMark";
 
-export default function FlowHeader({ title, sub, steps = 0, step = 0 }) {
+export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels = null }) {
+  const safeStep = Math.max(0, Math.min(Number(step) || 0, Number(steps) || 0));
+  const labels = Array.isArray(stepLabels) && stepLabels.length === steps ? stepLabels : null;
+
   return (
     <>
       <div className="c-head">
@@ -13,8 +16,20 @@ export default function FlowHeader({ title, sub, steps = 0, step = 0 }) {
         {sub && <div className="co">{sub}</div>}
       </div>
       {steps > 0 && (
-        <div className="steps">
-          {Array.from({ length: steps }).map((_, i) => <div key={i} className={`s ${step >= i + 1 ? "on" : ""}`} />)}
+        <div className={`steps${labels ? " has-labels" : ""}`}>
+          {Array.from({ length: steps }).map((_, i) => {
+            const n = i + 1;
+            const on = safeStep >= n;
+            const cur = safeStep === n;
+            return (
+              <div key={i} className={`s-wrap`}>
+                <div className={`s ${on ? "on" : ""} ${cur ? "cur" : ""}`} />
+                {labels && (
+                  <span className={`s-label ${on ? "on" : ""} ${cur ? "cur" : ""}`}>{labels[i]}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </>

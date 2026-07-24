@@ -9,7 +9,7 @@ import Icon from "@/components/Icon";
 import FlowHeader from "@/components/FlowHeader";
 import StepFooter from "@/components/StepFooter";
 import { useRouter } from "next/navigation";
-import { getSession, logout, login, listPendingMembers, approveMember, rejectMember } from "@/lib/auth";
+import { getSession, logout, login, listPendingMembers, approveMember, rejectMember, listAudits } from "@/lib/auth";
 
 export default function Admin() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [appeals, setAppeals] = useState([]);
   const [risks, setRisks] = useState([]);
+  const [audits, setAudits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [members, setMembers] = useState([]);
@@ -43,8 +44,8 @@ export default function Admin() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const [a, r, m] = await Promise.all([listAppeals(), listRisks(), listPendingMembers()]);
-      setAppeals(a); setRisks(r); setMembers(m);
+      const [a, r, m, au] = await Promise.all([listAppeals(), listRisks(), listPendingMembers(), listAudits(40)]);
+      setAppeals(a); setRisks(r); setMembers(m); setAudits(au);
     } catch (e) { console.error(e); }
     setLoading(false);
   }, []);
@@ -184,6 +185,20 @@ export default function Admin() {
             ))}
           </div>
         )}
+
+        <div className="card">
+          <div className="card-title">감사 로그 <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)" }}>· 최근 {audits.length}건</span></div>
+          {loading ? <><div className="skel" /><div className="skel" /></> :
+            audits.length === 0 ? <div className="empty">아직 감사 로그가 없습니다. 조회·등록·동의 시 자동 기록됩니다.</div> :
+              audits.map((u) => (
+                <div className="risk-row" key={u.id || `${u.action}-${u.at}`}>
+                  <div>
+                    <div className="type">{u.action}</div>
+                    <div className="meta">{u.actor || "-"} · {u.at ? fmtDate(u.at) : "-"}{u.meta?.company ? ` · ${u.meta.company}` : ""}{u.meta?.kind ? ` · ${u.meta.kind}` : ""}</div>
+                  </div>
+                </div>
+              ))}
+        </div>
       </div>
       {toast && <div className="toast-host"><div className="toast safe">{toast}</div></div>}
     </>

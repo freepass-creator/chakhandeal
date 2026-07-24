@@ -1,9 +1,8 @@
 rules_version = '2';
-// 착한거래 Firestore 보안 규칙 (실서비스)
-//  - 회원사(회원)는 Firebase Auth 인증, 손님은 미인증(셀프 동의/조회)
-//  - 관리자 = dudguq@gmail.com (이메일 화이트리스트)
-//  ⚠️ 미해결 과제: risks 읽기를 손님 거래이력 조회 때문에 열어둠 → 전체 노출 위험.
-//     상용 강화 시 서버 엔드포인트(/api/cert)에서 admin SDK로 조회하도록 이전 권장.
+// RentSafe Pro — 서버(Admin SDK) 경유 전제
+//  - risks: 클라이언트 직접 읽기/쓰기 금지 → /api/v1/check|register
+//  - consents: 생성은 Admin API(/api/v1/consent). 회원/관리자 읽기만.
+//  - audits: Admin만
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
@@ -11,31 +10,37 @@ service cloud.firestore {
     }
     function isSignedIn() { return request.auth != null; }
 
-    // 회원사 프로필 — 본인(uid)만 생성·읽기, 관리자는 전체 읽기·승인(수정)
     match /members/{uid} {
       allow create: if isSignedIn() && request.auth.uid == uid;
       allow read:   if isAdmin() || (isSignedIn() && request.auth.uid == uid);
       allow update, delete: if isAdmin();
     }
 
-    // 동의(확인서) — 손님이 생성(미인증 허용), 읽기는 인증 회원사/관리자
+    // 동의 — 클라이언트 직접 create 금지(서버 Admin). 인증 회원사/관리자 읽기.
     match /consents/{id} {
-      allow create: if true;
+      allow create: if false;
       allow read:   if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
-    // 거래위반 — 회원사가 생성(인증), 손님 거래이력 조회를 위해 읽기 허용(⚠️ 위 경고), 수정은 인증/관리자
+    // 거래위반 — 전부 서버 Admin. 클라이언트 접근 차단.
     match /risks/{id} {
-      allow create: if isSignedIn();
-      allow read:   if true;
-      allow update, delete: if isSignedIn();
+      allow read, create, update, delete: if false;
     }
 
-    // 소명 — 손님이 신청(미인증), 관리자가 처리
+    // 소명 — 손님 create 허용(미인증). 처리는 관리자.
     match /appeals/{id} {
       allow create: if true;
       allow read, update, delete: if isAdmin();
+    }
+
+    match /audits/{id} {
+      allow read, write: if false;
+    }
+
+    // 검증 기록 — Admin SDK만. 클라이언트 직접 접근 금지.
+    match /certificates/{id} {
+      allow read, create, update, delete: if false;
     }
   }
 }

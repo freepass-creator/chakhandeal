@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { RISK_TYPES, CONTRACT_CONSENT_FORM, CONSENT_NOTICES, STATUS_NOTICES, CODE_LABEL, VIOLATION_LABEL } from "@/lib/constants";
+import { RISK_TYPES, CONTRACT_CONSENT_FORM, CONSENT_NOTICES, STATUS_NOTICES, CODE_LABEL, VIOLATION_LABEL, riskTypesFor, DEFAULT_VERTICAL, getVertical } from "@/lib/constants";
 import { mask, fmtBirth, fmtDate } from "@/lib/format";
 import { listConsents, addRisk } from "@/lib/db";
-import { getSession, logout } from "@/lib/auth";
+import { getSession, logout, authHeaders } from "@/lib/auth";
 import AppHeader from "@/components/AppHeader";
 import Icon from "@/components/Icon";
 import NoticeList from "@/components/NoticeList";
@@ -48,24 +48,92 @@ export default function Console() {
   return (
     <>
       <AppHeader
-        subtitle={<>회원 콘솔 · <b style={{ opacity: .95 }}>{company}</b></>}
+        subtitle={<>회원 콘솔 · <b style={{ opacity: .95 }}>{company}</b>{code ? ` · ${CODE_LABEL} ${code}` : ""}</>}
         right={<button className="btn btn-sm" style={{ background: "transparent", borderColor: "rgba(255,255,255,.3)", color: "#fff" }} onClick={async () => { await logout(); router.replace("/login"); }}>로그아웃</button>}
       />
       <div className="container">
         <div className="tabs">
           <button className={`tab ${tab === "send" ? "active" : ""}`} onClick={() => setTab("send")}><Icon name="check" /> 동의 현황</button>
+          <button className={`tab ${tab === "certs" ? "active" : ""}`} onClick={() => setTab("certs")}><Icon name="file" /> 검증 수신</button>
           <button className={`tab ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}><Icon name="plus" /> {VIOLATION_LABEL}</button>
         </div>
-        {tab === "send" && <SendTab toast={showToast} company={company} code={code} />}
-        {tab === "register" && <RegisterTab toast={showToast} company={company} />}
+        {tab === "send" && <SendTab toast={showToast} company={company} code={code} vertical={session.vertical || DEFAULT_VERTICAL} />}
+        {tab === "certs" && <CertsTab toast={showToast} company={company} code={code} vertical={session.vertical || DEFAULT_VERTICAL} />}
+        {tab === "register" && <RegisterTab toast={showToast} company={company} vertical={session.vertical || DEFAULT_VERTICAL} />}
       </div>
       {toast && <div className="toast-host"><div className={`toast ${toast.kind || ""}`}>{toast.msg}</div></div>}
     </>
   );
 }
 
-/* ---------- 동의요청 ---------- */
-function SendTab({ toast, company, code }) {
+/* ---------- 검증 링크 수신 (사업자 코드로 귀속된 건) ---------- */
+function CertsTab({ toast, company, code, vertical }) {
+  const V = getVertical(vertical);
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/v1/cert", { headers: await authHeaders() });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) setList(j.certificates || []);
+      else { setList([]); toast(j.error || "검증 목록을 불러오지 못했습니다.", "danger"); }
+    } catch (e) {
+      console.error(e);
+      setList([]);
+    }
+    setLoading(false);
+  }, [toast]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  return (
+    <div className="card">
+      <div className="card-title">
+        검증 수신
+        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)" }}> · {list.length}건</span>
+        <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>새로고침</button>
+      </div>
+      <div className="card-desc">
+        손님이 <b>우리 {CODE_LABEL}({code || "—"})</b>로 귀속해 만든 상태 검증만 여기 쌓입니다.
+        동의 후 <b>내 상태 보내기</b>를 이어서 하면 자동으로 이 탭에 옵니다. 코드 없는 직접 전달은 카톡 링크로만 확인하세요.
+      </div>
+      {loading ? <><div className="skel" /><div className="skel" /></> :
+        list.length === 0 ? <div className="empty">아직 수신된 검증이 없습니다. 손님이 동의 후 내 상태 보내기로 링크를 만들면 여기에 표시됩니다.</div> :
+          list.map((c) => (
+            <div key={c.id} style={{ borderBottom: "1px solid #eef2f6" }}>
+              <div className="risk-row" style={{ borderBottom: "none" }}>
+                <div style={{ flex: 1 }}>
+                  <div className="type">{mask(c.subjectName)} · {c.trustLevel || "-"}</div>
+                  <div className="meta">{c.certName || "검증"} · {fmtDate(c.submittedAt || c.issuedAt)}</div>
+                </div>
+                <span className={`badge ${c.summary?.seriousBreaches ? "b-red" : "b-green"}`}>
+                  <span className="dot" />
+                  {c.summary?.seriousBreaches ? `확정 ${c.summary.seriousBreaches}` : "신규"}
+                </span>
+                <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => setOpen(open === c.id ? null : c.id)}>
+                  {open === c.id ? "닫기" : "보기"}
+                </button>
+              </div>
+              {open === c.id && (
+                <div style={{ padding: "0 0 12px", fontSize: 13, color: "var(--ink2)", lineHeight: 1.55 }}>
+                  <div>본인확인: {c.identityVerified ? "완료" : "-"} · 상태: {c.trustLevel || "-"}</div>
+                  <div>확인된 이력 {c.summary?.confirmedAdoptionsOrDeals ?? 0}건 · 중대 위반(확정) {c.summary?.seriousBreaches ?? 0}건</div>
+                  {c.notice && <div style={{ marginTop: 6, color: "var(--ink3)" }}>{c.notice}</div>}
+                  <a className="btn btn-sm" style={{ marginTop: 8, display: "inline-block" }} href={`/v?id=${encodeURIComponent(c.id)}`} target="_blank" rel="noreferrer">상태 링크 열기</a>
+                </div>
+              )}
+            </div>
+          ))}
+    </div>
+  );
+}
+
+/* ---------- 동의·검증 요청 ---------- */
+function SendTab({ toast, company, code, vertical }) {
+  const V = getVertical(vertical);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showTpl, setShowTpl] = useState(false);
@@ -84,44 +152,26 @@ function SendTab({ toast, company, code }) {
   return (
     <>
       <div className="card code-card">
-        <div className="card-title">손님에게 동의 요청 보내기</div>
-        <div className="card-desc">아래 <b>동의 링크</b>를 손님에게 보내세요(문자·카톡 등). 손님이 링크를 열면 우리 회원으로 자동 확인되고, 본인인증 후 동의가 진행됩니다.</div>
-        <button className="btn btn-primary btn-block" onClick={() => copyText(`${location.origin}/consent?code=${code}`)}><Icon name="send" /> 동의 링크 복사</button>
-        <div className="hint" style={{ marginTop: 12 }}>링크를 못 쓰는 경우, 손님이 <b>착한거래 동의하기</b>에서 직접 입력하는 {CODE_LABEL}: <b className="mono">{code || "—"}</b>{code && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => copyText(code)}>복사</button>}</div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">손님이 보는 동의 내용
-          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowPreview((v) => !v)}>{showPreview ? "접기" : "미리보기"}</button>
+        <div className="card-title">손님에게 안내 보내기 · {V.label}</div>
+        <div className="card-desc">
+          링크를 보내면 손님이 <b>이번 거래에 동의</b>합니다. 이어서 손님이 <b>내 상태 보내기</b>하면 동의 목록·검증 수신에 쌓입니다.
         </div>
-        {showPreview && (
-          <>
-            <div className="card-desc">손님이 <b>착한거래 동의하기</b>에서 아래 내용을 확인하고 동의합니다.</div>
-            <NoticeList items={CONSENT_NOTICES} />
-            <ConsentClauses />
-          </>
-        )}
+        <button className="btn btn-primary btn-block" onClick={() => copyText(`${location.origin}/consent?code=${code}`)}>
+          <Icon name="send" /> 동의 안내 링크 복사
+        </button>
+        <div className="hint" style={{ marginTop: 12 }}>{CODE_LABEL}: <b className="mono">{code || "—"}</b>{code && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => copyText(code)}>복사</button>}</div>
       </div>
 
       <div className="card">
-        <div className="card-title">손님이 보는 상태확인 내용
-          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowStatusPreview((v) => !v)}>{showStatusPreview ? "접기" : "미리보기"}</button>
-        </div>
-        {showStatusPreview && (
-          <>
-            <div className="card-desc">손님이 본인인증 후 보는 상태확인 안내입니다.</div>
-            <NoticeList items={STATUS_NOTICES} />
-          </>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-title">제출된 착한거래 확인서
+        <div className="card-title">제출된 동의
+          <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)", marginLeft: 6 }}>
+            · {list.filter((c) => c.status === "completed").length}건
+          </span>
           <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>↻ 새로고침</button>
         </div>
-        <div className="card-desc">손님이 동의하면 본인 거래이력 확인서가 우리 회사로 제출됩니다. 아래는 우리 회사로 제출받은 확인서입니다.</div>
+        <div className="card-desc">손님이 동의하면 여기에 남습니다. 캡처가 아니라 이 기록만 확인하세요.</div>
         {loading ? <><div className="skel" /><div className="skel" /></> :
-          list.filter((c) => c.status === "completed").length === 0 ? <div className="empty">아직 제출된 확인서가 없습니다.</div> :
+          list.filter((c) => c.status === "completed").length === 0 ? <div className="empty">아직 제출된 동의가 없습니다. 위 링크를 손님에게 보내 주세요.</div> :
             list.filter((c) => c.status === "completed").map((c) => {
               const hasPhotos = c.photos?.id || c.photos?.face;
               return (
@@ -147,6 +197,31 @@ function SendTab({ toast, company, code }) {
       </div>
 
       <div className="card">
+        <div className="card-title">손님이 보는 동의 내용
+          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowPreview((v) => !v)}>{showPreview ? "접기" : "미리보기"}</button>
+        </div>
+        {showPreview && (
+          <>
+            <div className="card-desc">손님이 <b>이번 거래에 동의</b>에서 아래 내용을 확인하고 동의합니다.</div>
+            <NoticeList items={CONSENT_NOTICES} />
+            <ConsentClauses />
+          </>
+        )}
+      </div>
+
+      <div className="card">
+        <div className="card-title">손님이 보는 상태확인 내용
+          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowStatusPreview((v) => !v)}>{showStatusPreview ? "접기" : "미리보기"}</button>
+        </div>
+        {showStatusPreview && (
+          <>
+            <div className="card-desc">손님이 본인확인 후 보는 상태 안내입니다.</div>
+            <NoticeList items={STATUS_NOTICES} />
+          </>
+        )}
+      </div>
+
+      <div className="card">
         <div className="card-title">개인정보 동의서에 항목 추가
           <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowTpl((v) => !v)}>{showTpl ? "접기" : "양식 보기"}</button>
         </div>
@@ -164,12 +239,13 @@ function SendTab({ toast, company, code }) {
 }
 
 /* ---------- 위반 등록 ---------- */
-function RegisterTab({ toast, company }) {
+function RegisterTab({ toast, company, vertical = DEFAULT_VERTICAL }) {
   const [busy, setBusy] = useState(false);
   const [evidence, setEvidence] = useState("");
   const [name, setName] = useState("");
   const [birth, setBirth] = useState("");
   const [completed, setCompleted] = useState([]);
+  const types = riskTypesFor(vertical);
 
   useEffect(() => {
     listConsents(company).then((cs) => setCompleted(cs.filter((c) => c.status === "completed"))).catch(() => {});
@@ -189,12 +265,12 @@ function RegisterTab({ toast, company }) {
     setBusy(true);
     try {
       await addRisk({
-        name: name.trim(), birth, type: f.type.value, company,
+        name: name.trim(), birth, type: f.type.value, company, vertical,
         license: f.license.value.trim(), phone: f.phone.value.trim(), reason: f.reason.value.trim(), evidence,
       });
       f.reset(); setName(""); setBirth(""); setEvidence("");
       toast(`${VIOLATION_LABEL} 내역이 등록되었습니다.`, "safe");
-    } catch (err) { console.error(err); toast("저장 실패 — Firestore 설정/규칙을 확인하세요.", "danger"); }
+    } catch (err) { console.error(err); toast(err?.message || "저장 실패 — 로그인·권한을 확인하세요.", "danger"); }
     setBusy(false);
   }
 
@@ -214,12 +290,14 @@ function RegisterTab({ toast, company }) {
           <div className="field full"><label>이름 <span className="req">*</span></label><input value={name} onChange={(e) => setName(e.target.value)} required placeholder="홍길동" /></div>
           <div className="field full"><label>생년월일 <span className="req">*</span></label><input value={birth} onChange={(e) => setBirth(e.target.value)} required inputMode="numeric" maxLength={6} placeholder="900715" /></div>
           <div className="field full"><label>위반 유형 <span className="req">*</span></label>
-            <select name="type" required>{Object.entries(RISK_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-          <div className="field full"><label>운전면허번호</label><input name="license" placeholder="11-22-334455-66" /></div>
+            <select name="type" required>{Object.entries(types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+          <div className="field full"><label>{vertical === "rent" ? "운전면허번호" : "참고번호"}</label>
+            <input name="license" placeholder={vertical === "rent" ? "11-22-334455-66" : "계약번호·고객번호 등"} /></div>
           <div className="field full"><label>휴대폰번호</label><input name="phone" inputMode="numeric" placeholder="010-0000-0000" /></div>
-          <div className="field full"><label>등록 사유 <span className="req">*</span></label><textarea name="reason" rows={3} required placeholder="계약위반 경위 (예: 대여료 4개월 미납, 3차 통지 후 무응답)" /></div>
+          <div className="field full"><label>등록 사유 <span className="req">*</span></label>
+            <textarea name="reason" rows={3} required placeholder="계약·이용 조건 미이행 경위 (객관적 사실 위주)" /></div>
           <div className="field full">
-            <label>증빙 첨부 <span className="req">*</span> <span className="opt">내용증명·미납내역·반납요청 등</span></label>
+            <label>증빙 첨부 <span className="req">*</span> <span className="opt">내용증명·미납·요청 내역 등</span></label>
             <label className="btn btn-block" style={{ cursor: "pointer" }}>
               <Icon name="file" /> {evidence || "증빙 파일 선택"}
               <input type="file" style={{ display: "none" }} onChange={(e) => setEvidence(e.target.files?.[0]?.name || "")} />

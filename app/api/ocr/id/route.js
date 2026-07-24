@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { Type } from "@google/genai";
 import { extractFromImage } from "@/lib/gemini";
+import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,9 +30,22 @@ const PROMPT = `이 이미지는 한국 신분증(주민등록증 또는 운전�
 신분증이 아니거나 글자를 읽을 수 없으면 모든 값을 null 로 반환하세요.`;
 
 export async function POST(req) {
+  const ip = clientIp(req);
+  const rl = rateLimit(`ocr-id:${ip}`, { limit: 15, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ ok: false, error: "요청이 너무 많습니다." }, { status: 429 });
+  }
+
   let file;
   try { file = (await req.formData()).get("file"); }
   catch { return NextResponse.json({ ok: false, error: "FormData 파싱 실패" }, { status: 400 }); }
+  if (!file || typeof file === "string") {
+    return NextResponse.json({ ok: false, error: "file 누락" }, { status: 400 });
+  }
+  const mime = file.type || "";
+  if (mime && !mime.startsWith("image/")) {
+    return NextResponse.json({ ok: false, error: "이미지 파일만 허용" }, { status: 400 });
+  }
   try {
     const p = await extractFromImage({ file, schema: SCHEMA, prompt: PROMPT });
     const birth = String(p.birth || "").replace(/\D/g, "").slice(0, 6);

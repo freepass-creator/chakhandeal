@@ -26,9 +26,9 @@ export function ConsentClauses() {
   );
 }
 
-// 확인서 결과 뱃지 (cert: { unresolved, count }) — full=상세 문구
+// 동의 결과 뱃지 (cert: { unresolved, count }) — full=상세 문구 · 「이상 없음」대신 신규/이력 표현
 export function CertBadge({ cert, full = false }) {
   return cert?.unresolved
     ? <span className="badge b-red"><span className="dot" />미해소{full ? " 거래이력" : ""} {cert.count}건</span>
-    : <span className="badge b-green"><span className="dot" />{full ? "미해소 거래이력 없음" : "이상 없음"}</span>;
+    : <span className="badge b-green"><span className="dot" />{full ? "신규 · 미해소 이력 없음" : "신규"}</span>;
 }

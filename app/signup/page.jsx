@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signup } from "@/lib/auth";
+import { VERTICALS, DEFAULT_VERTICAL } from "@/lib/constants";
 import Icon from "@/components/Icon";
 import FlowHeader from "@/components/FlowHeader";
 import StepFooter from "@/components/StepFooter";
@@ -11,6 +12,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [company, setCompany] = useState("");
   const [service, setService] = useState("");
+  const [vertical, setVertical] = useState(DEFAULT_VERTICAL);
   const [bizNo, setBizNo] = useState("");
   const [ceo, setCeo] = useState("");
   const [industry, setIndustry] = useState("");
@@ -63,7 +65,7 @@ export default function SignupPage() {
     if (pw.length < 6) { setErr("비밀번호는 6자 이상이어야 합니다."); return; }
     if (pw !== pw2) { setErr("비밀번호가 일치하지 않습니다."); return; }
     setBusy(true);
-    const r = await signup({ company, email, pw, bizImage, ceoIdImage, service, bizNo, ceo, industry });
+    const r = await signup({ company, email, pw, bizImage, ceoIdImage, service, bizNo, ceo, industry, vertical });
     setBusy(false);
     if (r.error) { setErr(r.error); return; }
     setDone(true);
@@ -99,12 +101,24 @@ export default function SignupPage() {
             {ocr === "done" && <div className="hint" style={{ color: "#0f7f5b" }}>✓ 회사정보를 자동으로 채웠어요. 틀리면 고쳐 주세요.</div>}
             {ocr === "fail" && <div className="hint">자동 인식이 안 됐어요. 아래에 직접 입력해 주세요.</div>}
           </div>
-          <div className="field"><label>회사·상호명 <span className="req">*</span></label><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="예: 스피드렌터카" /></div>
+          <div className="field"><label>회사·상호명 <span className="req">*</span></label><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="예: 스피드렌탈" /></div>
           <div className="field"><label>사업자등록번호</label><input value={bizNo} onChange={(e) => setBizNo(e.target.value)} placeholder="000-00-00000" /></div>
           <div className="field"><label>대표자</label><input value={ceo} onChange={(e) => setCeo(e.target.value)} placeholder="대표자 성명" /></div>
+          <div className="field"><label>업종 카테고리 <span className="req">*</span></label>
+            <select value={vertical} onChange={(e) => {
+              const v = e.target.value;
+              setVertical(v);
+              const meta = VERTICALS[v];
+              if (meta && !service.trim()) setService(meta.label);
+            }}>
+              {Object.values(VERTICALS).map((v) => (
+                <option key={v.id} value={v.id}>{v.label} ({v.brandEn})</option>
+              ))}
+            </select>
+          </div>
           <div className="field"><label>업종(서비스) <span className="req">*</span> <span className="opt">손님 화면에 표시됩니다</span></label>
-            <input value={service} onChange={(e) => setService(e.target.value)} placeholder="예: 렌터카" list="svc-list" />
-            <datalist id="svc-list"><option value="렌터카" /><option value="분양" /><option value="렌탈" /><option value="숙박" /></datalist></div>
+            <input value={service} onChange={(e) => setService(e.target.value)} placeholder="예: 렌탈" list="svc-list" />
+            <datalist id="svc-list"><option value="렌탈" /><option value="반려 분양" /><option value="식당" /><option value="숙박" /></datalist></div>
           <div className="field">
             <label>대표자 신분증 <span className="req">*</span> <span className="opt">촬영으로 첨부</span></label>
             <label className="btn btn-block" style={{ cursor: "pointer" }}>

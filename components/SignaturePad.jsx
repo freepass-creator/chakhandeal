@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
+import { DEMO_MODE } from "@/lib/constants";
 
 // 손가락/마우스 서명 캔버스. onChange(dataURL|"") 로 결과 전달.
 export default function SignaturePad({ onChange, fill }) {
@@ -35,6 +36,21 @@ export default function SignaturePad({ onChange, fill }) {
     dirty.current = false;
     onChange?.("");
   }
+  function sampleSign() {
+    const c = canvasRef.current;
+    const ctx = ctxRef.current;
+    if (!c || !ctx) return;
+    clear();
+    const w = c.getBoundingClientRect().width;
+    const h = c.getBoundingClientRect().height;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.15, h * 0.55);
+    ctx.bezierCurveTo(w * 0.3, h * 0.2, w * 0.45, h * 0.8, w * 0.6, h * 0.4);
+    ctx.bezierCurveTo(w * 0.7, h * 0.25, w * 0.8, h * 0.5, w * 0.88, h * 0.45);
+    ctx.stroke();
+    dirty.current = true;
+    onChange?.(c.toDataURL("image/png"));
+  }
 
   return (
     <div className="sig" style={fill ? { display: "flex", flexDirection: "column", height: "100%", width: "100%", marginTop: 0 } : undefined}>
@@ -47,6 +63,7 @@ export default function SignaturePad({ onChange, fill }) {
       />
       <div className="sig-bar">
         <span className="sig-hint">위 칸에 손가락으로 서명해 주세요</span>
+        {DEMO_MODE && <button type="button" className="btn btn-sm" onClick={sampleSign}>샘플 서명</button>}
         <button type="button" className="btn btn-sm" onClick={clear}>지우기</button>
       </div>
     </div>
