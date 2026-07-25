@@ -16,11 +16,9 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // 동의 — 클라이언트 직접 create 금지(서버 Admin). 인증 회원사/관리자 읽기.
+    // 동의 — 클라이언트 직접 접근 금지. 목록/조회는 /api/v1/consents (Admin SDK).
     match /consents/{id} {
-      allow create: if false;
-      allow read:   if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow create, read, update, delete: if false;
     }
 
     // 거래위반 — 전부 서버 Admin. 클라이언트 접근 차단.

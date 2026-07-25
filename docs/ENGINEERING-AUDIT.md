@@ -2,9 +2,9 @@
 
 날짜: 2026-07-25 · 대상: `rentsafe-pro` · 기준: [`ENGINEERING-PRINCIPLES.md`](./ENGINEERING-PRINCIPLES.md)
 
-**요약:** Pass **7** · Partial **16** · Fail **7**
+**요약:** Pass **7** · Partial **16** · Fail **7** → 이번 패치로 **P02/P17/P18/P21/P24** 일부 완화 (시연 기본 유지).
 
-> 시연(DEMO)용으로는 동작. **실서비스 전환 전**에 Fail(high)부터 막는 것이 우선.
+> 시연: `NEXT_PUBLIC_DEMO_MODE` 미설정(true). 상용: `NEXT_PUBLIC_DEMO_MODE=false` + `MATCH_HMAC_SECRET` 실키.
 
 ---
 
