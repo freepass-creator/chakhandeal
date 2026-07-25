@@ -4,12 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { hyphenPhone, fmtBirth } from "@/lib/format";
 import { CARRIERS, DEMO_MODE } from "@/lib/constants";
 import { requestPhoneCode, verifyPhoneCode } from "@/lib/kyc/phoneProvider";
-import { DEMO_USERS, DEMO_IMG } from "@/lib/demo";
+import { DEMO_USERS } from "@/lib/demo";
 import StepFooter from "@/components/StepFooter";
 import CameraCapture from "@/components/CameraCapture";
 import Icon from "@/components/Icon";
 
-/** 본인확인 내부 단계 → 진행바 (4칸) */
 export function authProgress(stage) {
   switch (stage) {
     case "method": return { step: 1, label: "방법" };
@@ -25,24 +24,26 @@ export function authProgress(stage) {
   }
 }
 
-function fillDemoIdentity() {
+function demoId() {
   const u = DEMO_USERS.clean;
   return { name: u.name, birth: u.birth, phone: u.phone };
 }
 
-// 본인확인 — DEMO_MODE면 UI에 티 내지 않고, 비어 있어도 다음으로 통과
+/**
+ * 본인확인
+ * DEMO_MODE: 빈 입력·문자도 통과. 신분증/얼굴은 촬영 → 확인 → 다음.
+ */
 export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onProgress = null }) {
   const [stage, setStage] = useState("method");
   const [ocrUsed, setOcrUsed] = useState(false);
-  const [ocrFail, setOcrFail] = useState(false);
-  const [a, setA] = useState({ name: "", birth: "", phone: "" });
-  const [carrier, setCarrier] = useState("");
+  const [a, setA] = useState(() => (DEMO_MODE ? demoId() : { name: "", birth: "", phone: "" }));
+  const [carrier, setCarrier] = useState(() => (DEMO_MODE ? (CARRIERS[0] || "SKT") : ""));
   const [code, setCode] = useState("");
   const [phoneTxId, setPhoneTxId] = useState("");
   const [idImage, setIdImage] = useState("");
   const [faceImage, setFaceImage] = useState("");
-  const set = (k) => (e) => setA((s) => ({ ...s, [k]: e.target.value }));
-  const setPhone = (e) => setA((s) => ({ ...s, phone: hyphenPhone(e.target.value) }));
+  const [idReady, setIdReady] = useState(false);
+  const [faceReady, setFaceReady] = useState(false);
   const camRef = useRef(null);
   const progressRef = useRef(onProgress);
   progressRef.current = onProgress;
@@ -51,96 +52,119 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
     progressRef.current?.(authProgress(stage));
   }, [stage]);
 
-  // 휴대폰 화면 진입 시 조용히 채움 (시연 티 없음)
-  useEffect(() => {
-    if (!DEMO_MODE || stage !== "phone") return;
-    setA((s) => {
-      if (s.name && s.birth && s.phone) return s;
-      return fillDemoIdentity();
-    });
-    setCarrier((c) => c || CARRIERS[0] || "SKT");
-  }, [stage]);
+  const set = (k) => (e) => setA((s) => ({ ...s, [k]: e.target.value }));
+  const setPhone = (e) => setA((s) => ({ ...s, phone: hyphenPhone(e.target.value) }));
 
-  async function runOcr(fromUrl) {
-    const img = fromUrl || idImage;
-    if (!img) {
-      if (DEMO_MODE) {
-        const d = fillDemoIdentity();
-        setIdImage(DEMO_IMG);
-        setA(d);
-        setStage("manual");
-      }
-      return;
-    }
-    setIdImage(img);
-    setStage("ocr");
-    try {
-      const fd = new FormData();
-      fd.append("file", dataUrlToBlob(img), "id.jpg");
-      const r = await fetch("/api/ocr/id", { method: "POST", body: fd });
-      const j = await r.json();
-      if (j.ok && j.name && j.birth && j.birth.replace(/\D/g, "").length === 6) {
-        setOcrUsed(true);
-        setA((s) => ({ ...s, name: j.name, birth: j.birth, phone: s.phone || fillDemoIdentity().phone }));
-        setStage("review");
-      } else {
-        if (DEMO_MODE) {
-          const d = fillDemoIdentity();
-          setA((s) => ({ name: s.name || d.name, birth: s.birth || d.birth, phone: s.phone || d.phone }));
-        }
-        setOcrFail(true);
-        setStage("manual");
-      }
-    } catch {
-      if (DEMO_MODE) {
-        const d = fillDemoIdentity();
-        setA((s) => ({ name: s.name || d.name, birth: s.birth || d.birth, phone: s.phone || d.phone }));
-      }
-      setOcrFail(true);
-      setStage("manual");
-    }
-  }
-
-  function ensureIdentity() {
-    const d = fillDemoIdentity();
+  function identity() {
+    const d = demoId();
     const next = {
-      name: a.name.trim() || (DEMO_MODE ? d.name : ""),
-      birth: (a.birth.replace(/\D/g, "").slice(0, 6) || (DEMO_MODE ? d.birth : "")),
-      phone: a.phone.replace(/\D/g, "").length >= 10 ? a.phone : (DEMO_MODE ? d.phone : a.phone),
+      name: (a.name || "").trim() || (DEMO_MODE ? d.name : ""),
+      birth: String(a.birth || "").replace(/\D/g, "").slice(0, 6) || (DEMO_MODE ? d.birth : ""),
+      phone: String(a.phone || "").replace(/\D/g, "").length >= 10 ? a.phone : (DEMO_MODE ? d.phone : a.phone),
     };
     setA(next);
     return next;
   }
 
+  function complete(payload) {
+    setStage("done");
+    window.setTimeout(() => onVerified(payload), 350);
+  }
+
+  function passPhoneFlow() {
+    const id = identity();
+    complete({
+      name: id.name,
+      birth: id.birth,
+      phone: id.phone,
+      method: "휴대폰 본인인증",
+      idImage: "",
+      faceImage: "",
+    });
+  }
+
+  function backToIdCam() {
+    setIdReady(false);
+    setIdImage("");
+    setStage("idcam");
+  }
+
+  async function runOcr(img) {
+    const src = img || idImage;
+    if (!src) {
+      alert("촬영한 사진을 확인해 주세요.");
+      return;
+    }
+    setIdImage(src);
+    setStage("ocr");
+    try {
+      const fd = new FormData();
+      fd.append("file", dataUrlToBlob(src), "id.jpg");
+      const r = await fetch("/api/ocr/id", { method: "POST", body: fd });
+      const j = await r.json();
+      if (j.ok && j.name && j.birth && String(j.birth).replace(/\D/g, "").length === 6) {
+        setOcrUsed(true);
+        setA((s) => ({ ...s, name: j.name, birth: j.birth, phone: s.phone || demoId().phone }));
+        setStage("review");
+        return;
+      }
+    } catch { /* fall through */ }
+    if (DEMO_MODE) setA((s) => ({ ...demoId(), ...s, name: s.name || demoId().name, birth: s.birth || demoId().birth, phone: s.phone || demoId().phone }));
+    setStage("manual");
+  }
+
+  /** 촬영 → 미리보기 확인 → 다음(OCR). soft 모드면 권한 없이도 촬영본처럼 표시 */
+  function shootId() {
+    if (!idReady) {
+      const url = camRef.current?.capture?.() || null;
+      if (!url) {
+        if (!DEMO_MODE) alert("카메라가 준비되면 다시 눌러 주세요.");
+        return;
+      }
+      setIdImage(url);
+      setIdReady(true);
+      return;
+    }
+    runOcr(idImage);
+  }
+
+  /** 얼굴도 촬영 → 확인 → 완료 */
+  function shootFace() {
+    if (!faceReady) {
+      const url = camRef.current?.capture?.() || null;
+      if (!url) {
+        if (!DEMO_MODE) alert("카메라가 준비되면 다시 눌러 주세요.");
+        return;
+      }
+      setFaceImage(url);
+      setFaceReady(true);
+      return;
+    }
+    const id = identity();
+    complete({
+      name: id.name,
+      birth: id.birth,
+      phone: id.phone,
+      method: ocrUsed ? "신분증 OCR + 얼굴 대조" : "신분증 + 얼굴 대조",
+      idImage: idImage || "",
+      faceImage: faceImage || "",
+    });
+  }
+
   function toSelfie() {
-    const id = ensureIdentity();
-    if (!id.name || id.birth.length < 6 || id.phone.replace(/\D/g, "").length < 10) {
-      if (!DEMO_MODE) { alert("이름 · 생년월일 6자리 · 휴대폰번호를 확인해 주세요."); return; }
+    const id = identity();
+    if (!DEMO_MODE && (!id.name || id.birth.length < 6 || id.phone.replace(/\D/g, "").length < 10)) {
+      alert("이름 · 생년월일 6자리 · 휴대폰번호를 확인해 주세요.");
+      return;
     }
     setStage("selfie");
   }
 
-  function finish(face = faceImage) {
-    const id = ensureIdentity();
-    const faceOk = face || (DEMO_MODE ? DEMO_IMG : "");
-    if (!faceOk) { alert("본인 얼굴을 촬영해 주세요."); return; }
-    if (!face) setFaceImage(faceOk);
-    setStage("done");
-    setTimeout(() => onVerified({
-      name: id.name,
-      birth: id.birth.slice(0, 6),
-      phone: id.phone,
-      method: ocrUsed ? "신분증 OCR + 얼굴 대조" : "신분증 + 얼굴 대조",
-      idImage: idImage || (DEMO_MODE ? DEMO_IMG : ""),
-      faceImage: faceOk,
-    }), 600);
-  }
-
   async function startPhoneCode() {
-    const id = ensureIdentity();
+    const id = identity();
     const car = carrier || CARRIERS[0] || "SKT";
     if (!carrier) setCarrier(car);
-    if (!DEMO_MODE && (!id.name || id.birth.length < 6 || !car || id.phone.replace(/\D/g, "").length < 10)) {
+    if (!DEMO_MODE && (!id.name || id.birth.length < 6 || id.phone.replace(/\D/g, "").length < 10)) {
       alert("입력 내용을 확인해 주세요.");
       return;
     }
@@ -152,64 +176,34 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
   }
 
   async function finishPhone() {
-    let digits = code.replace(/\D/g, "");
-    if (DEMO_MODE && digits.length < 6) digits = (digits + "000000").slice(0, 6);
+    const digits = (code.replace(/\D/g, "") + "000000").slice(0, 6);
     const res = await verifyPhoneCode({ txId: phoneTxId, code: digits });
-    if (!res.ok) { alert(res.error || "인증 실패"); return; }
-    const id = ensureIdentity();
-    setStage("done");
-    setTimeout(() => onVerified({
-      name: id.name,
-      birth: id.birth.slice(0, 6),
-      phone: id.phone,
-      method: "휴대폰 본인인증",
-      idImage: "",
-      faceImage: "",
-    }), 600);
+    if (!res.ok && !DEMO_MODE) { alert(res.error || "인증 실패"); return; }
+    passPhoneFlow();
   }
 
-  function captureId() {
-    const url = camRef.current?.capture?.() || null;
-    if (url) {
-      // 한 번에 다음 단계로
-      runOcr(url);
-      return;
-    }
-    if (!DEMO_MODE) { alert("카메라가 준비되면 다시 눌러 주세요."); return; }
-    const d = fillDemoIdentity();
-    setIdImage(DEMO_IMG);
-    setA(d);
-    setOcrFail(false);
-    setStage("manual");
-  }
-
-  function captureFace() {
-    const url = camRef.current?.capture?.() || null;
-    if (url) {
-      setFaceImage(url);
-      finish(url);
-      return;
-    }
-    if (!DEMO_MODE) { alert("카메라가 준비되면 다시 눌러 주세요."); return; }
-    finish(DEMO_IMG);
-  }
-
-  if (stage === "ocr" || stage === "done")
+  if (stage === "ocr" || stage === "done") {
     return (
       <>
-        <div className="c-body anim-in" key={stage}><div className="verifying"><div className="spinner" /><div style={{ fontWeight: 700, fontSize: 15 }}>{stage === "ocr" ? "신분증을 확인하는 중…" : "본인확인 처리 중…"}</div></div></div>
-        <div className="c-footer"><button className="btn btn-block" disabled>처리 중…</button></div>
+        <div className="c-body anim-in" key={stage}>
+          <div className="verifying">
+            <div className="spinner" />
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{stage === "ocr" ? "신분증을 확인하는 중…" : "본인확인 처리 중…"}</div>
+          </div>
+        </div>
+        <div className="c-footer"><button type="button" className="btn btn-block" disabled>처리 중…</button></div>
       </>
     );
+  }
 
-  if (stage === "method")
+  if (stage === "method") {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
           <div className="slabel">본인확인</div>
           <div className="stitle">본인확인을 진행해 주세요</div>
           <div className="sdesc">신분증과 얼굴을 촬영하면 온라인 대면으로 본인확인이 됩니다. 권장 방식입니다.</div>
-          <button type="button" className="auth-opt rec" onClick={() => { setOcrFail(false); setStage("idcam"); }}>
+          <button type="button" className="auth-opt rec" onClick={() => setStage("idcam")}>
             <span className="ic id"><Icon name="file" size={18} /></span>
             <span className="tx">신분증으로 인증<small>신분증 촬영 + 얼굴 촬영 · 온라인 대면 · 권장</small></span>
             <span className="arr">›</span>
@@ -221,34 +215,52 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
           </button>
           {supportHelp}
         </div>
-        <StepFooter prev={{ onClick: onCancel }} />
+        <StepFooter prev={{ label: "이전", onClick: onCancel }} />
       </>
     );
+  }
 
-  if (stage === "idcam")
+  if (stage === "idcam") {
     return (
       <>
         <div className="c-body anim-in" key={stage} style={{ display: "flex", flexDirection: "column", paddingBottom: 6 }}>
           <div className="slabel">신분증 촬영</div>
-          <div className="stitle">신분증을 촬영해 주세요</div>
-          <div className="sdesc" style={{ marginBottom: 10 }}>가로 틀에 맞춰 촬영하면 이름·생년월일을 자동으로 읽어요. 본인확인의 핵심 단계입니다.</div>
-          {ocrFail && (
-            <div className="alert-box danger">
-              글자가 또렷하게 읽히지 않았어요. 빛 반사 없이 가로 틀에 꽉 차게 다시 촬영해 주세요.
-            </div>
-          )}
+          <div className="stitle">{idReady ? "촬영한 사진을 확인해 주세요" : "신분증을 촬영해 주세요"}</div>
+          <div className="sdesc" style={{ marginBottom: 10 }}>
+            {idReady
+              ? "흐리거나 잘리면 다시 촬영한 뒤 다음으로 진행해 주세요."
+              : "가로 틀에 맞춰 촬영하면 이름·생년월일을 자동으로 읽어요."}
+          </div>
           <div style={{ flex: 1, minHeight: 200 }}>
-            <CameraCapture ref={camRef} facing="environment" max={1100} onCapture={(u) => { setIdImage(u); if (u) setOcrFail(false); }} guide="신분증을 가로 틀에 꽉 차게" />
+            <CameraCapture
+              ref={camRef}
+              facing="environment"
+              max={1100}
+              soft={DEMO_MODE}
+              onCapture={(u) => {
+                if (u) { setIdImage(u); setIdReady(true); }
+                else { setIdImage(""); setIdReady(false); }
+              }}
+              guide="신분증을 가로 틀에 꽉 차게"
+            />
           </div>
         </div>
         <StepFooter
-          prev={{ onClick: () => { setOcrFail(false); setStage("method"); } }}
-          next={idImage ? { label: "다음", onClick: runOcr } : { label: "● 촬영", onClick: captureId }}
+          prev={{
+            label: "이전",
+            onClick: () => {
+              setIdReady(false);
+              setIdImage("");
+              setStage("method");
+            },
+          }}
+          next={{ label: idReady ? "다음" : "● 촬영", onClick: shootId }}
         />
       </>
     );
+  }
 
-  if (stage === "review")
+  if (stage === "review") {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
@@ -262,30 +274,33 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
           <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
           <button type="button" className="text-link" onClick={() => setStage("manual")}>정보가 다른가요? 직접 입력하기</button>
         </div>
-        <StepFooter prev={{ onClick: () => { setIdImage(""); setStage("idcam"); } }} next={{ label: "네, 맞습니다", onClick: toSelfie }} />
+        <StepFooter prev={{ label: "이전", onClick: backToIdCam }} next={{ label: "네, 맞습니다", onClick: toSelfie }} />
       </>
     );
+  }
 
-  if (stage === "manual")
+  if (stage === "manual") {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
           <div className="slabel">{ocrUsed ? "정보 보정" : "정보 입력"}</div>
           <div className="stitle">{ocrUsed ? "잘못 읽힌 부분을 고쳐 주세요" : "이름·생년월일을 입력해 주세요"}</div>
-          <div className="sdesc">{ocrUsed
-            ? "신분증에서 읽은 정보예요. 다른 부분만 신분증과 동일하게 고쳐 주세요."
-            : "신분증은 촬영됐어요. 글자를 자동으로 못 읽어, 신분증과 동일하게 직접 입력해 주세요."}</div>
+          <div className="sdesc">
+            {ocrUsed
+              ? "신분증에서 읽은 정보예요. 다른 부분만 고쳐 주세요."
+              : "이름·생년월일·휴대폰번호를 확인해 주세요."}
+          </div>
           <div className="field"><label>이름</label><input value={a.name} onChange={set("name")} placeholder="홍길동" /></div>
           <div className="field"><label>생년월일 6자리</label><input value={a.birth} onChange={set("birth")} inputMode="numeric" maxLength={6} placeholder="900715" /></div>
           <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
-          {!ocrUsed && <button type="button" className="text-link" onClick={() => { setOcrFail(false); setIdImage(""); setStage("idcam"); }}>신분증을 다시 촬영할게요</button>}
           {supportHelp}
         </div>
-        <StepFooter prev={{ onClick: () => { if (!ocrUsed) setIdImage(""); setOcrFail(false); setStage(ocrUsed ? "review" : "idcam"); } }} next={{ label: "다음", onClick: toSelfie }} />
+        <StepFooter prev={{ label: "이전", onClick: backToIdCam }} next={{ label: "다음", onClick: toSelfie }} />
       </>
     );
+  }
 
-  if (stage === "phone")
+  if (stage === "phone") {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
@@ -297,11 +312,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
           <div className="field"><label>통신사</label><select value={carrier} onChange={(e) => setCarrier(e.target.value)}><option value="">선택</option>{CARRIERS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
           <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
         </div>
-        <StepFooter prev={{ onClick: () => setStage("method") }} next={{ label: "인증번호 요청", onClick: startPhoneCode }} />
+        <StepFooter prev={{ label: "이전", onClick: () => setStage("method") }} next={{ label: "인증번호 요청", onClick: startPhoneCode }} />
       </>
     );
+  }
 
-  if (stage === "phonecode")
+  if (stage === "phonecode") {
     return (
       <>
         <div className="c-body anim-in" key={stage}>
@@ -311,23 +327,46 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
           <div className="field"><label>인증번호</label><input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="000000" /></div>
           <button type="button" className="text-link" onClick={startPhoneCode}>다시 요청</button>
         </div>
-        <StepFooter prev={{ onClick: () => setStage("phone") }} next={{ label: "인증 완료", onClick: finishPhone }} />
+        <StepFooter prev={{ label: "이전", onClick: () => setStage("phone") }} next={{ label: "인증 완료", onClick: finishPhone }} />
       </>
     );
+  }
 
+  // selfie
   return (
     <>
       <div className="c-body anim-in" key={stage} style={{ display: "flex", flexDirection: "column", paddingBottom: 6 }}>
         <div className="slabel">얼굴 촬영</div>
-        <div className="stitle">본인 얼굴을 촬영해 주세요</div>
-        <div className="sdesc" style={{ marginBottom: 10 }}>신분증과 같은 사람인지 확인합니다. 얼굴을 틀 안에 맞춰 주세요.</div>
+        <div className="stitle">{faceReady ? "촬영한 얼굴을 확인해 주세요" : "본인 얼굴을 촬영해 주세요"}</div>
+        <div className="sdesc" style={{ marginBottom: 10 }}>
+          {faceReady
+            ? "흐리거나 잘리면 다시 촬영한 뒤 다음으로 진행해 주세요."
+            : "신분증과 같은 사람인지 확인합니다."}
+        </div>
         <div style={{ flex: 1, minHeight: 200 }}>
-          <CameraCapture ref={camRef} facing="user" max={720} onCapture={setFaceImage} guide="얼굴을 틀 안에 맞춰 주세요" />
+          <CameraCapture
+            ref={camRef}
+            facing="user"
+            max={720}
+            soft={DEMO_MODE}
+            onCapture={(u) => {
+              if (u) { setFaceImage(u); setFaceReady(true); }
+              else { setFaceImage(""); setFaceReady(false); }
+            }}
+            guide="얼굴을 틀 안에 맞춰 주세요"
+          />
         </div>
       </div>
       <StepFooter
-        prev={{ onClick: () => setStage(ocrUsed ? "review" : "manual") }}
-        next={faceImage ? { label: "본인확인 완료", onClick: () => finish() } : { label: "● 촬영", onClick: captureFace }}
+        prev={{
+          label: "이전",
+          onClick: () => {
+            setFaceReady(false);
+            setFaceImage("");
+            setStage(ocrUsed ? "review" : "manual");
+          },
+        }}
+        next={{ label: faceReady ? "다음" : "● 촬영", onClick: shootFace }}
       />
     </>
   );

@@ -5,17 +5,33 @@ import { useRouter } from "next/navigation";
 import { findMemberByCode, createSelfConsent } from "@/lib/db";
 import { CONSENT_NOTICES, CONSENT_VERSION, CAMPAIGN_TITLE, CAMPAIGN_HEADLINE, CODE_LABEL, DEMO_MODE, DEMO_MEMBERS, RISK_TYPES } from "@/lib/constants";
 import { fmtDateTime } from "@/lib/format";
-import AuthFlow from "@/components/AuthFlow";
+import AuthFlow, { authProgress } from "@/components/AuthFlow";
 import NoticeList from "@/components/NoticeList";
 import SignaturePad from "@/components/SignaturePad";
 import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
 import { VerifiedCard, ConsentClauses, CertBadge } from "@/components/VerifyParts";
 
+/** 동의 흐름 한 줄 — 본인확인으로 들어가도 바가 처음부터 다시 시작하지 않음 */
+const STEP_LABELS = ["대상", "방법", "인증", "확인", "동의", "서명"];
+
+function consentStep({ target, started, verified, signing, done, authStep }) {
+  if (done || signing) return 6;
+  if (verified) return 5;
+  if (started) {
+    // AuthFlow 1~4 → 동의바 2~4 (방법·인증·확인). 얼굴/완료도 확인(4)
+    if (authStep <= 1) return 2;
+    if (authStep === 2) return 3;
+    return 4;
+  }
+  if (target) return 2; // 안내(다음 → 방법)
+  return 1;
+}
+
 export default function SelfConsentPage() {
   const router = useRouter();
   const [code, setCode] = useState("");
-  const [target, setTarget] = useState(null);   // { company, code }
+  const [target, setTarget] = useState(null);
   const [checking, setChecking] = useState(false);
   const [err, setErr] = useState("");
   const [started, setStarted] = useState(false);
@@ -27,8 +43,14 @@ export default function SelfConsentPage() {
   const [receipt, setReceipt] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState("");
+  const [authStep, setAuthStep] = useState(1);
+  const [authLabel, setAuthLabel] = useState("방법");
 
-  // 회원이 보낸 링크(/consent?code=...)로 들어오면 거래코드 자동 입력·확인
+  const inAuth = started && !verified;
+  const screen = done ? "done" : signing ? "sign" : verified ? "agree" : target ? "intro" : "code";
+  const step = consentStep({ target, started, verified, signing, done, authStep });
+  const stepName = STEP_LABELS[step - 1] || "";
+
   useEffect(() => {
     const c = (new URLSearchParams(window.location.search).get("code") || "").replace(/\D/g, "");
     if (!c) return;
@@ -51,7 +73,10 @@ export default function SelfConsentPage() {
         const base = DEMO_MEMBERS.find((x) => x.code === c) || DEMO_MEMBERS[0];
         m = { company: base.company, code: c, service: base.service || "", vertical: base.vertical || "rent" };
       }
-      if (!m) { setErr(`‘${c}’ ${CODE_LABEL}의 거래 상대를 찾을 수 없습니다. 아직 착한거래 회원이 아니라면 동의를 진행할 수 없어요.`); return; }
+      if (!m) {
+        setErr(`‘${c}’ ${CODE_LABEL}의 거래 상대를 찾을 수 없습니다. 아직 착한거래 회원이 아니라면 동의를 진행할 수 없어요.`);
+        return;
+      }
       setTarget(m);
     } catch (e) {
       console.error(e);
@@ -61,7 +86,6 @@ export default function SelfConsentPage() {
     }
   }
 
-  // 하단 [다음] 버튼 — 현재 단계에 따라 동작/문구/비활성 결정
   function onNext() {
     if (!target) return lookup();
     if (!started && !verified) return setStarted(true);
@@ -71,18 +95,36 @@ export default function SelfConsentPage() {
     }
     if (verified && signing) return finish();
   }
+
   function nextLabel() {
     if (!target) return checking ? "확인 중…" : "다음";
-    if (!started && !verified) return "본인확인";
+    if (!started && !verified) return "다음";
+    if (verified && !signing) return "다음";
     if (verified && signing) return submitting ? "제출 중…" : "완료";
-    if (verified && !signing) return "서명하기";
     return "다음";
   }
+
   function nextDisabled() {
     if (!target) return checking;
     if (verified && !signing) return DEMO_MODE ? false : !agreed;
     if (verified && signing) return submitting;
     return false;
+  }
+
+  function goBack() {
+    if (done) { router.push("/"); return; }
+    if (signing) { setSigning(false); return; }
+    if (verified) {
+      setVerified(null);
+      setAgreed(false);
+      setStarted(false);
+      setSigning(false);
+      setAuthStep(1);
+      setAuthLabel("방법");
+      return;
+    }
+    if (target) { setTarget(null); setCode(""); setErr(""); setStarted(false); return; }
+    router.push("/");
   }
 
   async function finish() {
@@ -113,76 +155,94 @@ export default function SelfConsentPage() {
     }
   }
 
-  // 단일 파이프라인 — AuthFlow는 '본인확인'(2) 안의 세부 단계일 뿐, 진행바를 갈아끼우지 않음
-  const step = done || signing ? 4 : verified ? 3 : (started || target) ? 2 : 1;
-  const screen = done ? "done" : signing ? "sign" : verified ? "agree" : target ? "intro" : "code";
-  const headerLabels = ["대상", "본인확인", "동의", "서명"];
+  const header = (
+    <FlowHeader
+      title="동의 및 내 상태 보내기"
+      sub={
+        done ? "완료"
+          : inAuth
+            ? `${target?.company || ""} · ${authLabel}`.replace(/^ · /, "")
+            : target
+              ? `${target.company} · ${stepName}`
+              : `${CODE_LABEL}를 입력해 시작하세요`
+      }
+      steps={STEP_LABELS.length}
+      step={step}
+      stepLabels={STEP_LABELS}
+    />
+  );
 
-  function goBack() {
-    if (done) { router.push("/"); return; }
-    if (signing) { setSigning(false); return; }
-    if (verified) { setVerified(null); setAgreed(false); return; }
-    if (started) { setStarted(false); return; }
-    if (target) { setTarget(null); setCode(""); setErr(""); return; }
-    router.push("/");
+  if (inAuth) {
+    return (
+      <div className="app">
+        {header}
+        <AuthFlow
+          onVerified={(v) => {
+            setVerified(v);
+            setStarted(true);
+          }}
+          onCancel={() => {
+            setStarted(false);
+            setAuthStep(1);
+            setAuthLabel("방법");
+          }}
+          onProgress={(p) => {
+            const prog = p || authProgress("method");
+            setAuthStep(prog.step);
+            setAuthLabel(prog.label);
+          }}
+        />
+      </div>
+    );
   }
 
   return (
     <div className="app">
-      <FlowHeader
-        title="동의 및 내 상태 보내기"
-        sub={started && !verified ? "본인확인" : target ? `${target.company}와의 거래` : `${CODE_LABEL}를 입력해 시작하세요`}
-        steps={4}
-        step={step}
-        stepLabels={headerLabels}
-      />
+      {header}
 
-      {started && !verified ? (
-        <AuthFlow onVerified={setVerified} onCancel={() => setStarted(false)} />
-      ) : (
-        <>
       <div className="c-body anim-in" key={screen} style={screen === "sign" ? { display: "flex", flexDirection: "column" } : undefined}>
-        {/* STEP 0 — 업체코드 입력 */}
         {!target && (
           <>
-            <div className="slabel">동의 대상 확인</div>
+            <div className="slabel">1. 대상</div>
             <div className="stitle">어느 거래에 동의하시나요?</div>
-            <div className="sdesc">거래 상대로부터 받은 <b>{CODE_LABEL}</b>를 입력해 주세요. 착한거래에 등록된 회원만 동의 대상이 될 수 있습니다.</div>
+            <div className="sdesc">거래 상대로부터 받은 <b>{CODE_LABEL}</b>를 입력해 주세요.</div>
             <form onSubmit={(e) => { e.preventDefault(); lookup(); }}>
               <div className="field"><label>{CODE_LABEL}</label>
-                <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={4} placeholder="예: 1234" style={{ letterSpacing: 2 }} /></div>
+                <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={4} placeholder="예: 1001" style={{ letterSpacing: 2 }} /></div>
               {err && <div className="auth-err">{err}</div>}
             </form>
           </>
         )}
 
-        {/* STEP 1 — 캠페인 안내 + 본인인증 */}
-        {target && !started && !verified && (
+        {target && !verified && (
           <>
-            <div className="confirm-co"><span className="cc-chk">✓</span> <b>{target.company}</b>{target.service && <span className="svc-tag">{target.service} 서비스</span>} <span className="cc-ok">확인됨</span></div>
-            <div className="slabel">{CAMPAIGN_TITLE}</div>
+            <div className="confirm-co"><span className="cc-chk">✓</span> <b>{target.company}</b>{target.service && <span className="svc-tag">{target.service}</span>} <span className="cc-ok">{CODE_LABEL} {target.code}</span></div>
+            <div className="slabel">2. 방법</div>
             <div className="stitle">{CAMPAIGN_HEADLINE}</div>
+            <div className="sdesc">{CAMPAIGN_TITLE}</div>
             <NoticeList items={CONSENT_NOTICES} />
           </>
         )}
-        {/* STEP 2 — 동의 */}
+
         {verified && !signing && !done && (
           <>
             <VerifiedCard v={verified} />
-            <div className="slabel">동의 · {target.company}</div>
+            <div className="slabel">5. 동의</div>
             <div className="stitle">아래 내용에 동의해 주세요</div>
-            <div className="sdesc" style={{ marginBottom: 8 }}>동의하면 동의 기록과 <b>내 상태 검증</b>이 <b>{target.company}</b> 콘솔에 <b>함께 전달됩니다</b>. (캡처·확인서 복사본은 만들지 않습니다.)</div>
+            <div className="sdesc" style={{ marginBottom: 8 }}>
+              동의하면 동의 기록과 <b>내 상태 검증</b>이 <b>{target.company}</b> 콘솔에 <b>함께 전달됩니다</b>.
+            </div>
             <ConsentClauses />
             <label className={`cc ${agreed ? "on" : ""}`}>
-              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} /> <span>위 내용을 확인하였으며, 이번 건 동의 기록과 <b>내 상태 검증</b>이 <b>{target.company}</b> 콘솔에 전달되는 데 동의합니다.</span>
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+              <span>위 내용을 확인하였으며, 이번 건 동의 기록과 <b>내 상태 검증</b>이 <b>{target.company}</b> 콘솔에 전달되는 데 동의합니다.</span>
             </label>
           </>
         )}
 
-        {/* STEP 3 — 서명 */}
         {verified && signing && !done && (
           <>
-            <div className="slabel">서명</div>
+            <div className="slabel">6. 서명</div>
             <div className="stitle">동의 확인을 위해 서명해 주세요</div>
             <div className="sdesc" style={{ marginBottom: 10 }}>{target.company}와의 거래 동의를 본인이 직접 확인하는 전자서명입니다.</div>
             <div style={{ flex: 1, minHeight: 220, display: "flex" }}>
@@ -192,7 +252,6 @@ export default function SelfConsentPage() {
           </>
         )}
 
-        {/* STEP 4 — 완료 */}
         {done && verified && receipt && (
           <div className="done">
             <div className="big">✓</div>
@@ -211,21 +270,22 @@ export default function SelfConsentPage() {
               <div className="r"><span className="k">대상 회원사</span><span className="v">{target.company}</span></div>
               <div className="r"><span className="k">본인확인</span><span className="v">완료 · {verified.method}</span></div>
               <div className="r"><span className="k">동의자</span><span className="v">{verified.name}</span></div>
-              <div className="r"><span className="k">전자서명</span><span className="v">{sig ? "완료" : "—"}</span></div>
+              <div className="r"><span className="k">전자서명</span><span className="v">{sig || DEMO_MODE ? "완료" : "—"}</span></div>
               <div className="r"><span className="k">동의일시</span><span className="v mono">{receipt.ts}</span></div>
               <div className="r"><span className="k">문구버전</span><span className="v">{CONSENT_VERSION}</span></div>
-            </div>
-            <div className="hint">
-              동의와 동시에 내 상태 검증이 {target.company} 콘솔에 전달되어, 따로 보낼 필요가 없습니다.<br />
-              다른 상대에게 보여 주려면 홈의 <b>내 상태 보기</b>에서 링크를 만드세요.
             </div>
           </div>
         )}
       </div>
-      {!done && <StepFooter prev={{ onClick: goBack }} next={{ label: nextLabel(), onClick: onNext, disabled: nextDisabled() }} />}
+
+      {!done && (
+        <StepFooter
+          prev={{ label: "이전", onClick: goBack }}
+          next={{ label: nextLabel(), onClick: onNext, disabled: nextDisabled() }}
+        />
+      )}
       {done && (
         <StepFooter next={{ label: "처음으로", onClick: () => router.push("/") }} />
-      )}        </>
       )}
     </div>
   );

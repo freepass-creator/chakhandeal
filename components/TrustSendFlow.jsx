@@ -5,19 +5,18 @@ import { useRouter } from "next/navigation";
 import { DEFAULT_VERTICAL, CODE_LABEL } from "@/lib/constants";
 import { findMemberByCode } from "@/lib/db";
 import { fmtDateTime } from "@/lib/format";
-import AuthFlow from "@/components/AuthFlow";
+import AuthFlow, { authProgress } from "@/components/AuthFlow";
 import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
 
 /**
- * 내 상태 보기 — 파이프라인 2단계만.
- *   1) 본인확인  2) 내 상태
- * 누군가에게 전달하고 싶을 때만 링크로 보냄 (단계 아님 · 선택).
- * 손님은 업종을 고르지 않음. ?code= 있으면 그 회원 업종.
+ * 내 상태 보기
+ * - 본인확인 중: AuthFlow 실제 단계 표시
+ * - 확인 후: 페이지에 복사/전달, 하단바는 처음으로
  */
 export default function TrustSendFlow() {
   const router = useRouter();
-  const [phase, setPhase] = useState("auth"); // auth | view | send(선택)
+  const [phase, setPhase] = useState("auth"); // auth | view
   const [verified, setVerified] = useState(null);
   const [draft, setDraft] = useState(null);
   const [issued, setIssued] = useState(null);
@@ -25,11 +24,11 @@ export default function TrustSendFlow() {
   const [copied, setCopied] = useState(false);
   const [provider, setProvider] = useState(null);
   const [boot, setBoot] = useState(false);
+  const [authStep, setAuthStep] = useState(1);
+  const [authLabel, setAuthLabel] = useState("방법");
 
-  /** 진행바는 본인확인(1)·내 상태(2)만. 전달 화면은 단계 밖 */
-  const inPipeline = phase === "auth" || phase === "view";
-  const step = phase === "view" ? 2 : 1;
   const vertical = provider?.vertical || DEFAULT_VERTICAL;
+  const AUTH_LABELS = ["방법", "인증", "확인", "완료"];
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +78,6 @@ export default function TrustSendFlow() {
     setVerified(v);
     const ok = await loadDraft(v);
     if (!ok) {
-      // API 실패해도 시연이 멈추지 않게 로컬 초안
       setDraft({
         trustLevel: "신규",
         notice: "이력이 없으면 신규·본인확인 완료로 표시됩니다. 불리한 의미가 아닙니다.",
@@ -91,15 +89,12 @@ export default function TrustSendFlow() {
 
   function buildShare(id) {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const shareUrl = `${origin}/v?id=${encodeURIComponent(id)}`;
-    return {
-      shareUrl,
-      shareText: `[착한거래] 내 상태 확인 링크입니다.\n\n${shareUrl}\n\n※ 캡처가 아니라 위 링크를 열어 확인해 주세요.`,
-    };
+    return { shareUrl: `${origin}/v?id=${encodeURIComponent(id)}` };
   }
 
-  async function prepareSend() {
-    if (!verified || !draft) return;
+  async function ensureLink() {
+    if (issued?.shareUrl) return issued;
+    if (!verified || !draft) return null;
     setBusy(true);
     try {
       const r = await fetch("/api/v1/cert/submit", {
@@ -116,18 +111,20 @@ export default function TrustSendFlow() {
         }),
       });
       const j = await r.json();
-      if (!j.ok) { alert(j.error || "준비 실패"); return; }
-      setIssued({ ...j, ...buildShare(j.id) });
-      setPhase("send");
+      if (!j.ok) { alert(j.error || "링크 준비에 실패했습니다."); return null; }
+      const next = { ...j, ...buildShare(j.id) };
+      setIssued(next);
+      return next;
     } finally {
       setBusy(false);
     }
   }
 
   async function copyShare() {
-    if (!issued?.shareUrl) return;
+    const link = await ensureLink();
+    if (!link?.shareUrl) return;
     try {
-      await navigator.clipboard?.writeText(issued.shareUrl);
+      await navigator.clipboard?.writeText(link.shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -136,31 +133,37 @@ export default function TrustSendFlow() {
   }
 
   async function shareNative() {
-    if (!issued) return;
+    const link = await ensureLink();
+    if (!link?.shareUrl) return;
     if (navigator.share) {
       try {
         await navigator.share({
           title: "착한거래 상태 링크",
           text: "캡처가 아니라 링크를 열어 확인해 주세요.",
-          url: issued.shareUrl,
+          url: link.shareUrl,
         });
         return;
       } catch { /* fall through */ }
     }
-    copyShare();
+    try {
+      await navigator.clipboard?.writeText(link.shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      alert("아래 링크를 길게 눌러 복사해 주세요.");
+    }
   }
 
   const header = (
     <FlowHeader
       title="내 상태 보기"
       sub={
-        phase === "send" ? "링크로 전달 (선택)"
-          : phase === "view" ? "내 상태"
-            : boot && provider ? `${provider.company} · 본인확인` : "본인확인"
+        phase === "view" ? "내 상태"
+          : boot && provider ? `${provider.company} · ${authLabel}` : authLabel
       }
-      steps={inPipeline ? 2 : 0}
-      step={inPipeline ? step : 0}
-      stepLabels={inPipeline ? ["본인확인", "내 상태"] : null}
+      steps={phase === "auth" ? 4 : 0}
+      step={phase === "auth" ? authStep : 0}
+      stepLabels={phase === "auth" ? AUTH_LABELS : null}
     />
   );
 
@@ -178,7 +181,15 @@ export default function TrustSendFlow() {
             </div>
           </div>
         )}
-        <AuthFlow onVerified={onVerified} onCancel={() => router.push("/")} />
+        <AuthFlow
+          onVerified={onVerified}
+          onCancel={() => router.push("/")}
+          onProgress={(p) => {
+            const prog = p || authProgress("method");
+            setAuthStep(prog.step);
+            setAuthLabel(prog.label);
+          }}
+        />
       </div>
     );
   }
@@ -187,8 +198,8 @@ export default function TrustSendFlow() {
     <div className="app">
       {header}
 
-      <div className="c-body anim-in" key={phase}>
-        {phase === "view" && verified && draft && (
+      <div className="c-body anim-in">
+        {verified && draft && (
           <>
             <div className="slabel">내 상태</div>
             <div className="stitle">{verified.name}님, 확인해 주세요</div>
@@ -199,45 +210,39 @@ export default function TrustSendFlow() {
               <div className="r"><span className="k">확인 시각</span><span className="v mono">{fmtDateTime(new Date())}</span></div>
             </div>
             <p className="sdesc" style={{ marginTop: 12 }}>{draft.notice}</p>
-            <p className="sdesc" style={{ marginTop: 8 }}>
-              확인만 하고 끝내도 됩니다. 누군가에게 보여 주고 싶을 때만 링크로 전달하세요.
-            </p>
-          </>
-        )}
 
-        {phase === "send" && issued && (
-          <div className="done">
-            <div className="big">✓</div>
-            <h2>전달할 링크가 준비됐어요</h2>
-            <p>
-              방금 확인한 상태를 링크로 전달합니다.<br />
-              캡처 대신 <b>아래 링크만</b> 카톡·문자로 보내 주세요.
-              {provider && <><br /><b>{provider.company}</b> 콘솔 검증 수신에도 기록됩니다.</>}
-            </p>
-            <div className="share-url">{issued.shareUrl}</div>
-            <button type="button" className="text-link" style={{ marginTop: 14 }} onClick={() => setPhase("view")}>
-              ← 내 상태로 돌아가기
-            </button>
-          </div>
+            <div className="share-box" style={{ marginTop: 18 }}>
+              <div className="sdesc" style={{ marginBottom: 10 }}>
+                보여 줄 상대가 있으면 링크로 전달하세요. 캡처는 인정되지 않습니다.
+                {provider && <> <b>{provider.company}</b> 콘솔에도 기록됩니다.</>}
+              </div>
+              {issued?.shareUrl && <div className="share-url">{issued.shareUrl}</div>}
+              <div className="share-actions" style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ flex: 1 }}
+                  disabled={busy || !draft}
+                  onClick={copyShare}
+                >
+                  {busy ? "준비 중…" : copied ? "복사됨" : "복사하기"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-safe"
+                  style={{ flex: 1 }}
+                  disabled={busy || !draft}
+                  onClick={shareNative}
+                >
+                  {busy ? "준비 중…" : "전달하기"}
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      {phase === "view" && (
-        <StepFooter
-          prev={{
-            label: busy ? "준비 중…" : "링크로 전달",
-            disabled: busy || !draft,
-            onClick: prepareSend,
-          }}
-          next={{ label: "확인 완료", onClick: () => router.push("/") }}
-        />
-      )}
-      {phase === "send" && (
-        <StepFooter
-          prev={{ label: copied ? "복사됨" : "링크 복사", onClick: copyShare }}
-          next={{ label: "카톡·문자로 보내기", onClick: shareNative, kind: "safe" }}
-        />
-      )}
+      <StepFooter next={{ label: "처음으로", onClick: () => router.push("/") }} />
     </div>
   );
 }
