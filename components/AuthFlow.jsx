@@ -61,12 +61,22 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
     setCarrier((c) => c || CARRIERS[0] || "SKT");
   }, [stage]);
 
-  async function runOcr() {
-    if (!idImage) return;
+  async function runOcr(fromUrl) {
+    const img = fromUrl || idImage;
+    if (!img) {
+      if (DEMO_MODE) {
+        const d = fillDemoIdentity();
+        setIdImage(DEMO_IMG);
+        setA(d);
+        setStage("manual");
+      }
+      return;
+    }
+    setIdImage(img);
     setStage("ocr");
     try {
       const fd = new FormData();
-      fd.append("file", dataUrlToBlob(idImage), "id.jpg");
+      fd.append("file", dataUrlToBlob(img), "id.jpg");
       const r = await fetch("/api/ocr/id", { method: "POST", body: fd });
       const j = await r.json();
       if (j.ok && j.name && j.birth && j.birth.replace(/\D/g, "").length === 6) {
@@ -159,7 +169,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
   }
 
   function captureId() {
-    if (camRef.current?.capture()) return;
+    const url = camRef.current?.capture?.() || null;
+    if (url) {
+      // 한 번에 다음 단계로
+      runOcr(url);
+      return;
+    }
     if (!DEMO_MODE) { alert("카메라가 준비되면 다시 눌러 주세요."); return; }
     const d = fillDemoIdentity();
     setIdImage(DEMO_IMG);
@@ -169,7 +184,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
   }
 
   function captureFace() {
-    if (camRef.current?.capture()) return;
+    const url = camRef.current?.capture?.() || null;
+    if (url) {
+      setFaceImage(url);
+      finish(url);
+      return;
+    }
     if (!DEMO_MODE) { alert("카메라가 준비되면 다시 눌러 주세요."); return; }
     finish(DEMO_IMG);
   }

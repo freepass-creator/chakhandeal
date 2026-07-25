@@ -32,8 +32,7 @@ const CameraCapture = forwardRef(function CameraCapture({ facing = "environment"
   function capture() {
     const v = videoRef.current;
     if (!v || !v.videoWidth) {
-      setErr((prev) => prev || "카메라가 아직 준비되지 않았어요. 권한을 허용한 뒤 잠시 기다려 주세요.");
-      return false;
+      return null;
     }
     const vw = v.videoWidth, vh = v.videoHeight;
     let sw, sh, sx, sy;
@@ -45,7 +44,7 @@ const CameraCapture = forwardRef(function CameraCapture({ facing = "environment"
     cv.getContext("2d").drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
     const url = cv.toDataURL("image/jpeg", 0.72);
     setShot(url); onCapture(url);
-    return true;
+    return url;
   }
   function retake() { setShot(""); setErr(""); onCapture(""); }
   useImperativeHandle(ref, () => ({ capture, retake }));
