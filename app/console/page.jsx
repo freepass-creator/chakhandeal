@@ -14,7 +14,7 @@ import { ConsentClauses, CertBadge } from "@/components/VerifyParts";
 export default function Console() {
   const router = useRouter();
   const [session, setSession] = useState(undefined);
-  const [tab, setTab] = useState("send");
+  const [tab, setTab] = useState("certs");
   const [toast, setToast] = useState(null);
   const showToast = useCallback((msg, kind) => {
     setToast({ msg, kind });
@@ -64,7 +64,7 @@ export default function Console() {
       <div className="container">
         <div className="tabs">
           <button className={`tab ${tab === "send" ? "active" : ""}`} onClick={() => setTab("send")}><Icon name="send" /> 안내·동의</button>
-          <button className={`tab ${tab === "certs" ? "active" : ""}`} onClick={() => setTab("certs")}><Icon name="file" /> 검증 수신</button>
+          <button className={`tab ${tab === "certs" ? "active" : ""}`} onClick={() => setTab("certs")}><Icon name="file" /> 거래상태</button>
           <button className={`tab ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}><Icon name="plus" /> {VIOLATION_LABEL}</button>
         </div>
         {tab === "send" && <SendTab toast={showToast} company={company} code={code} vertical={session.vertical || DEFAULT_VERTICAL} />}
@@ -76,20 +76,28 @@ export default function Console() {
   );
 }
 
-/* ---------- 검증 링크 수신 (사업자 코드로 귀속된 건) ---------- */
+/* ---------- 거래상태 (손님이 보낸 상태 검증) ---------- */
 function CertsTab({ toast, company, code, vertical }) {
   const V = getVertical(vertical);
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(null);
+  const [authErr, setAuthErr] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setAuthErr("");
     try {
       const r = await fetch("/api/v1/cert", { headers: await authHeaders() });
       const j = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        setList([]);
+        setAuthErr("로그인이 만료되었습니다. 다시 로그인해 주세요.");
+        toast("다시 로그인해 주세요.", "danger");
+        return;
+      }
       if (r.ok && j.ok) setList(j.certificates || []);
-      else { setList([]); toast(j.error || "검증 목록을 불러오지 못했습니다.", "danger"); }
+      else { setList([]); toast(j.error || "거래상태를 불러오지 못했습니다.", "danger"); }
     } catch (e) {
       console.error(e);
       setList([]);
@@ -102,41 +110,61 @@ function CertsTab({ toast, company, code, vertical }) {
   return (
     <div className="card">
       <div className="card-title">
-        검증 수신
+        거래상태 확인
         <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)" }}> · {list.length}건</span>
-        <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>새로고침</button>
+        <button type="button" className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>새로고침</button>
       </div>
       <div className="card-desc">
-        손님이 <b>우리 {CODE_LABEL}({code || "—"})</b>로 동의를 완료하면 상태 검증이 자동으로 이 탭에 쌓입니다.
-        <b>내 상태 보기</b>에서 우리 {CODE_LABEL}로 귀속해 보낸 링크도 함께 옵니다. 코드 없는 직접 전달은 카톡 링크로만 확인하세요.
+        손님이 <b>동의</b>하거나 <b>내 상태 보기</b>로 우리 {CODE_LABEL}(<b>{code || "—"}</b>)에 귀속해 보낸
+        <b> {V.certName || "상태 검증"}</b>이 여기에 쌓입니다. 캡처가 아니라 이 기록·상태 링크로만 확인하세요.
       </div>
+      {authErr && <div className="auth-err" style={{ marginBottom: 12 }}>{authErr}</div>}
       {loading ? <><div className="skel" /><div className="skel" /></> :
-        list.length === 0 ? <div className="empty">아직 수신된 검증이 없습니다. 손님이 동의를 완료하면 여기에 표시됩니다.</div> :
-          list.map((c) => (
+        list.length === 0 ? (
+          <div className="empty">
+            아직 수신된 거래상태가 없습니다.<br />
+            「안내·동의」탭에서 링크를 보내 손님이 동의를 완료하면 여기에 표시됩니다.
+          </div>
+        ) : list.map((c) => {
+          const hit = (c.summary?.seriousBreaches || 0) > 0 || c.trustLevel === "기록 있음" || c.negativeHistory;
+          const isOpen = open === c.id;
+          return (
             <div key={c.id} style={{ borderBottom: "1px solid var(--line2)" }}>
               <div className="risk-row" style={{ borderBottom: "none" }}>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="type">{mask(c.subjectName)} · {c.trustLevel || "-"}</div>
-                  <div className="meta">{c.certName || "검증"} · {fmtDate(c.submittedAt || c.issuedAt)}</div>
+                  <div className="meta">{c.certName || V.certName || "상태 검증"} · {fmtDate(c.submittedAt || c.issuedAt)}</div>
                 </div>
-                <span className={`badge ${c.summary?.seriousBreaches ? "b-red" : "b-green"}`}>
+                <span className={`badge ${hit ? "b-red" : "b-green"}`}>
                   <span className="dot" />
-                  {c.summary?.seriousBreaches ? `확정 ${c.summary.seriousBreaches}` : "신규"}
+                  {hit ? `이력 ${c.summary?.seriousBreaches || 1}` : "신규"}
                 </span>
-                <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => setOpen(open === c.id ? null : c.id)}>
-                  {open === c.id ? "닫기" : "보기"}
+                <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => setOpen(isOpen ? null : c.id)}>
+                  {isOpen ? "닫기" : "상세"}
                 </button>
               </div>
-              {open === c.id && (
-                <div style={{ padding: "0 0 12px", fontSize: 13, color: "var(--ink2)", lineHeight: 1.55 }}>
-                  <div>본인확인: {c.identityVerified ? "완료" : "-"} · 상태: {c.trustLevel || "-"}</div>
-                  <div>확인된 이력 {c.summary?.confirmedAdoptionsOrDeals ?? 0}건 · 중대 위반(확정) {c.summary?.seriousBreaches ?? 0}건</div>
-                  {c.notice && <div style={{ marginTop: 6, color: "var(--ink3)" }}>{c.notice}</div>}
-                  <a className="btn btn-sm" style={{ marginTop: 8, display: "inline-block" }} href={`/v?id=${encodeURIComponent(c.id)}`} target="_blank" rel="noreferrer">상태 링크 열기</a>
+              {isOpen && (
+                <div style={{ padding: "0 0 14px" }}>
+                  <div className="receipt" style={{ marginTop: 0 }}>
+                    <div className="r"><span className="k">이름</span><span className="v">{mask(c.subjectName)}</span></div>
+                    <div className="r"><span className="k">본인확인</span><span className="v">{c.identityVerified ? `완료${c.method ? ` · ${c.method}` : ""}` : "-"}</span></div>
+                    <div className="r"><span className="k">거래상태</span><span className="v">{c.trustLevel || "-"}</span></div>
+                    <div className="r"><span className="k">확인된 이력</span><span className="v">{c.summary?.confirmedAdoptionsOrDeals ?? 0}건</span></div>
+                    <div className="r"><span className="k">중대 위반(확정)</span><span className="v">{c.summary?.seriousBreaches ?? 0}건</span></div>
+                    <div className="r"><span className="k">수신</span><span className="v mono">{fmtDate(c.submittedAt || c.issuedAt)}</span></div>
+                    {c.expiresAt && <div className="r"><span className="k">링크 유효</span><span className="v mono">{fmtDate(c.expiresAt)}</span></div>}
+                  </div>
+                  {c.notice && <p className="hint" style={{ marginTop: 8 }}>{c.notice}</p>}
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                    <a className="btn btn-primary btn-sm" href={`/v?id=${encodeURIComponent(c.id)}`} target="_blank" rel="noreferrer">
+                      상태 링크 열기
+                    </a>
+                  </div>
                 </div>
               )}
             </div>
-          ))}
+          );
+        })}
     </div>
   );
 }
@@ -215,7 +243,7 @@ function SendTab({ toast, company, code, vertical }) {
       <div className="card code-card">
         <div className="card-title">손님에게 안내 보내기 · {V.label}</div>
         <div className="card-desc">
-          링크를 보내면 손님이 <b>동의 및 내 상태 보내기</b>를 진행합니다. 동의가 완료되면 동의 목록·검증 수신에 함께 쌓입니다.
+          링크를 보내면 손님이 <b>동의 및 내 상태 보내기</b>를 진행합니다. 완료되면 <b>거래상태</b> 탭에서 확인할 수 있습니다.
         </div>
         {consentUrl && (
           <div className="share-url" style={{ marginTop: 4, marginBottom: 12 }}>{consentUrl}</div>
@@ -277,6 +305,9 @@ function SendTab({ toast, company, code, vertical }) {
                     <div className="sp" />
                     {hasPhotos && <button type="button" className="btn btn-sm" style={{ marginRight: 8 }} onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? "대조 닫기" : "신분증·얼굴 대조"}</button>}
                     <CertBadge cert={c.cert} />
+                    {c.certId && (
+                      <a className="btn btn-sm" style={{ marginLeft: 8 }} href={`/v?id=${encodeURIComponent(c.certId)}`} target="_blank" rel="noreferrer">상태</a>
+                    )}
                   </div>
                   {open === c.id && hasPhotos && (
                     <div style={{ display: "flex", gap: 10, padding: "2px 0 12px" }}>
