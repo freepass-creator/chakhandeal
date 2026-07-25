@@ -115,7 +115,7 @@ export default function SignupPage() {
                 <option key={v.id} value={v.id}>{v.label}</option>
               ))}
             </select>
-            <div className="hint" style={{ marginTop: 6 }}>시연 가능 업종: 렌탈 · 반려·분양</div>
+            <div className="hint" style={{ marginTop: 6 }}>현재 가입 가능: 렌탈 · 반려·분양</div>
           </div>
           <div className="field"><label>업종(서비스) <span className="req">*</span> <span className="opt">손님 화면에 표시됩니다</span></label>
             <input value={service} onChange={(e) => setService(e.target.value)} placeholder="예: 렌탈" list="svc-list" />

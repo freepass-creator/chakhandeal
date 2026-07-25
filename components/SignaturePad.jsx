@@ -63,7 +63,6 @@ export default function SignaturePad({ onChange, fill }) {
       />
       <div className="sig-bar">
         <span className="sig-hint">위 칸에 손가락으로 서명해 주세요</span>
-        {DEMO_MODE && <button type="button" className="btn btn-sm" onClick={sampleSign}>샘플 서명</button>}
         <button type="button" className="btn btn-sm" onClick={clear}>지우기</button>
       </div>
     </div>

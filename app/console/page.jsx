@@ -278,7 +278,7 @@ function RegisterTab({ toast, company, vertical = DEFAULT_VERTICAL }) {
       await addRisk({
         name: name.trim(), birth, type: f.type.value, company, vertical,
         license: f.license.value.trim(), phone: f.phone.value.trim(), reason,
-        evidence: evidence || "(증빙 메모 없음 · 시연)",
+        evidence: evidence || "(증빙 메모 없음)",
       });
       f.reset(); setName(""); setBirth(""); setEvidence("");
       toast(`${VIOLATION_LABEL} 내역이 등록되었습니다.`, "safe");
@@ -309,7 +309,7 @@ function RegisterTab({ toast, company, vertical = DEFAULT_VERTICAL }) {
           <div className="field full"><label>등록 사유 <span className="req">*</span></label>
             <textarea name="reason" rows={3} required placeholder="계약·이용 조건 미이행 경위 (객관적 사실 위주)" /></div>
           <div className="field full">
-            <label>증빙 메모 <span className="opt">시연 — 보관 중인 증빙 요약</span></label>
+            <label>증빙 메모 <span className="opt">보관 중인 증빙 요약</span></label>
             <textarea value={evidence} onChange={(e) => setEvidence(e.target.value)} rows={2} placeholder="예: 내용증명·미납내역 PDF 보관 중" />
           </div>
         </div>

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DEFAULT_VERTICAL, DEMO_MODE, CODE_LABEL } from "@/lib/constants";
-import { demoPersonasFor } from "@/lib/demo";
+import { DEFAULT_VERTICAL, CODE_LABEL } from "@/lib/constants";
 import { findMemberByCode } from "@/lib/db";
 import { fmtDateTime } from "@/lib/format";
 import AuthFlow from "@/components/AuthFlow";
@@ -173,15 +172,7 @@ export default function TrustSendFlow() {
             </div>
           </div>
         )}
-        {DEMO_MODE && (
-          <div className="c-body" style={{ paddingTop: boot && provider ? 8 : undefined, paddingBottom: 0 }}>
-            <div className="demo-banner">
-              <strong>시연 모드</strong>
-              <span>실제 PASS·문자는 연결 전입니다. 본인확인에서 샘플로 바로 통과할 수 있어요.</span>
-            </div>
-          </div>
-        )}
-        <AuthFlow onVerified={onVerified} onCancel={() => router.push("/")} personas={demoPersonasFor(vertical)} />
+        <AuthFlow onVerified={onVerified} onCancel={() => router.push("/")} />
       </div>
     );
   }

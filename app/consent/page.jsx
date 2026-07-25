@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { findMemberByCode, createSelfConsent } from "@/lib/db";
-import { CONSENT_NOTICES, CONSENT_VERSION, CAMPAIGN_TITLE, CAMPAIGN_HEADLINE, CODE_LABEL, DEMO_MODE, RISK_TYPES } from "@/lib/constants";
-import { DEMO_CODES, demoPersonasFor } from "@/lib/demo";
+import { CONSENT_NOTICES, CONSENT_VERSION, CAMPAIGN_TITLE, CAMPAIGN_HEADLINE, CODE_LABEL, DEMO_MODE, DEMO_MEMBERS, RISK_TYPES } from "@/lib/constants";
 import { fmtDateTime } from "@/lib/format";
 import AuthFlow from "@/components/AuthFlow";
 import NoticeList from "@/components/NoticeList";
@@ -39,11 +38,19 @@ export default function SelfConsentPage() {
 
   async function lookup() {
     setErr("");
-    const c = code.trim();
+    let c = code.trim();
+    if (!c && DEMO_MODE) {
+      c = DEMO_MEMBERS[0].code;
+      setCode(c);
+    }
     if (!c) { setErr(`${CODE_LABEL}를 입력해 주세요.`); return; }
     setChecking(true);
     try {
-      const m = await findMemberByCode(c);
+      let m = await findMemberByCode(c);
+      if (!m && DEMO_MODE) {
+        const base = DEMO_MEMBERS.find((x) => x.code === c) || DEMO_MEMBERS[0];
+        m = { company: base.company, code: c, service: base.service || "", vertical: base.vertical || "rent" };
+      }
       if (!m) { setErr(`‘${c}’ ${CODE_LABEL}의 거래 상대를 찾을 수 없습니다. 아직 착한거래 회원이 아니라면 동의를 진행할 수 없어요.`); return; }
       setTarget(m);
     } catch (e) {
@@ -58,7 +65,10 @@ export default function SelfConsentPage() {
   function onNext() {
     if (!target) return lookup();
     if (!started && !verified) return setStarted(true);
-    if (verified && !signing) return setSigning(true);
+    if (verified && !signing) {
+      if (DEMO_MODE && !agreed) setAgreed(true);
+      return setSigning(true);
+    }
     if (verified && signing) return finish();
   }
   function nextLabel() {
@@ -69,9 +79,9 @@ export default function SelfConsentPage() {
     return "다음";
   }
   function nextDisabled() {
-    if (!target) return checking || !code.trim();
-    if (verified && !signing) return !agreed;
-    if (verified && signing) return !sig || submitting;
+    if (!target) return checking;
+    if (verified && !signing) return DEMO_MODE ? false : !agreed;
+    if (verified && signing) return submitting;
     return false;
   }
 
@@ -87,7 +97,7 @@ export default function SelfConsentPage() {
         code: target.code,
         vertical: target.vertical || "",
         verified: { name: verified.name, birth: verified.birth, method: verified.method },
-        signed: !!sig,
+        signed: !!(sig || DEMO_MODE),
         idImage: verified.idImage || "",
         faceImage: verified.faceImage || "",
       });
@@ -128,7 +138,7 @@ export default function SelfConsentPage() {
       />
 
       {started && !verified ? (
-        <AuthFlow onVerified={setVerified} onCancel={() => setStarted(false)} personas={demoPersonasFor(target?.vertical)} />
+        <AuthFlow onVerified={setVerified} onCancel={() => setStarted(false)} />
       ) : (
         <>
       <div className="c-body anim-in" key={screen} style={screen === "sign" ? { display: "flex", flexDirection: "column" } : undefined}>
@@ -143,26 +153,6 @@ export default function SelfConsentPage() {
                 <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={4} placeholder="예: 1234" style={{ letterSpacing: 2 }} /></div>
               {err && <div className="auth-err">{err}</div>}
             </form>
-            {DEMO_MODE && (
-              <>
-                <div className="demo-banner" style={{ marginTop: 8 }}>
-                  <strong>시연 모드 · 거래코드</strong>
-                  <span>아래 코드를 누르면 바로 대상이 선택됩니다.</span>
-                </div>
-                <div className="demo-chips">
-                  {DEMO_CODES.map((d) => (
-                    <button
-                      key={d.code}
-                      type="button"
-                      className="demo-chip"
-                      onClick={() => { setCode(d.code); setErr(""); findMemberByCode(d.code).then((m) => { if (m) setTarget(m); }).catch(() => {}); }}
-                    >
-                      {d.code} {d.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </>
         )}
 
