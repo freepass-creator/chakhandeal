@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { DEMO_MODE } from "@/lib/constants";
 import { issueDemoToken } from "@/lib/server/session";
 import { mockFindMemberByEmail } from "@/lib/server/mockStore";
 
@@ -12,6 +13,7 @@ const BUILTIN = {
 };
 
 function demoLoginAllowed() {
+  if (DEMO_MODE) return true;
   if (process.env.ALLOW_DEMO_LOGIN === "1") return true;
   if (process.env.NODE_ENV !== "production") return true;
   return false;
