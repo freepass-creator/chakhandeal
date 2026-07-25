@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from "react";
 
-/** 카메라 없이 시연용 — 찍힌 것처럼 보이는 JPEG dataURL */
+/** PC 시연용 — 카메라 실패 후에만 쓰는 가짜 촬영본 */
 function mockShotDataUrl(facing, max) {
   const isUser = facing === "user";
   const ar = isUser ? 3 / 4 : 3 / 2;
@@ -13,7 +13,6 @@ function mockShotDataUrl(facing, max) {
   cv.height = h;
   const ctx = cv.getContext("2d");
 
-  // 배경(살짝 노이즈 느낌의 단색 그라데이션)
   const g = ctx.createLinearGradient(0, 0, w, h);
   g.addColorStop(0, "#3a424c");
   g.addColorStop(1, "#1c2228");
@@ -21,7 +20,6 @@ function mockShotDataUrl(facing, max) {
   ctx.fillRect(0, 0, w, h);
 
   if (isUser) {
-    // 얼굴 영역 실루엣
     const cx = w * 0.5;
     const cy = h * 0.42;
     ctx.fillStyle = "#c8b8a8";
@@ -36,7 +34,6 @@ function mockShotDataUrl(facing, max) {
     ctx.textAlign = "center";
     ctx.fillText("본인 얼굴", cx, h * 0.88);
   } else {
-    // 신분증 카드
     const padX = w * 0.08;
     const padY = h * 0.12;
     const cw = w - padX * 2;
@@ -48,7 +45,6 @@ function mockShotDataUrl(facing, max) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 사진란
     const ph = ch * 0.55;
     const pw = ph * 0.75;
     ctx.fillStyle = "#d9d2c5";
@@ -59,7 +55,6 @@ function mockShotDataUrl(facing, max) {
     ctx.textAlign = "center";
     ctx.fillText("사진", padX + cw * 0.07 + pw / 2, padY + ch * 0.18 + ph / 2 + 6);
 
-    // 텍스트 줄
     const tx = padX + cw * 0.07 + pw + cw * 0.06;
     ctx.textAlign = "left";
     ctx.fillStyle = "#2a2a2a";
@@ -91,8 +86,10 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// 라이브 카메라 — 저장사진 업로드 불가, 그 자리 촬영만.
-// soft=true: 권한 없어도 뷰파인더처럼 보이고, 촬영 시 가짜 사진으로 확인 단계 진행
+/**
+ * 라이브 카메라. soft=true면 PC 등에서 권한 실패 시에만 가짜 촬영본.
+ * 실폰은 soft=false — 실제 카메라만 사용.
+ */
 const CameraCapture = forwardRef(function CameraCapture({
   facing = "environment",
   max = 1100,
@@ -102,53 +99,82 @@ const CameraCapture = forwardRef(function CameraCapture({
 }, ref) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const statusRef = useRef("starting"); // starting | live | failed
   const [err, setErr] = useState("");
   const [shot, setShot] = useState("");
-  const [hasLive, setHasLive] = useState(false);
+  const [status, setStatus] = useState("starting");
   const isUser = facing === "user";
   const targetAR = isUser ? 3 / 4 : 3 / 2;
 
   useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
     let cancelled = false;
+
     function stop() {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
       }
     }
+
     async function start() {
       setErr("");
-      setHasLive(false);
+      setStatus("starting");
+      statusRef.current = "starting";
+
       if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("failed");
+        statusRef.current = "failed";
         if (!soft) setErr("이 브라우저에서는 카메라를 사용할 수 없습니다.");
         return;
       }
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+        // ideal → 실폰에서 후면/전면 선택, exact는 일부 기기가 실패함
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: isUser ? 720 : 1280 },
+            height: { ideal: isUser ? 960 : 720 },
+          },
+        });
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
+        const v = videoRef.current;
+        if (v) {
+          v.srcObject = stream;
+          v.setAttribute("playsinline", "true");
+          v.muted = true;
+          await v.play().catch(() => {});
         }
-        setHasLive(true);
+        setStatus("live");
+        statusRef.current = "live";
       } catch {
-        if (!soft) setErr("카메라를 열 수 없습니다. 브라우저에서 카메라 권한을 허용한 뒤 다시 시도해 주세요.");
+        setStatus("failed");
+        statusRef.current = "failed";
+        if (!soft) {
+          setErr("카메라를 열 수 없습니다. 브라우저에서 카메라 권한을 허용한 뒤 다시 시도해 주세요.");
+        }
       }
     }
+
     if (!shot) start();
     return () => {
       cancelled = true;
       stop();
     };
-  }, [facing, shot, soft]);
+  }, [facing, shot, soft, isUser]);
 
   function capture() {
     const v = videoRef.current;
-    if (v && v.videoWidth) {
+    if (v && v.videoWidth > 0) {
       const vw = v.videoWidth;
       const vh = v.videoHeight;
       let sw, sh, sx, sy;
@@ -173,7 +199,12 @@ const CameraCapture = forwardRef(function CameraCapture({
       onCapture?.(url);
       return url;
     }
-    if (soft) {
+
+    // 카메라 준비 중이면 가짜로 넘어가지 않음 (실폰 촬영 보장)
+    if (statusRef.current === "starting") return null;
+
+    // PC 시연: 권한 실패 후에만 가짜 촬영본
+    if (soft && statusRef.current === "failed") {
       const url = mockShotDataUrl(facing, max);
       setShot(url);
       onCapture?.(url);
@@ -188,7 +219,7 @@ const CameraCapture = forwardRef(function CameraCapture({
     onCapture?.("");
   }
 
-  useImperativeHandle(ref, () => ({ capture, retake }));
+  useImperativeHandle(ref, () => ({ capture, retake, getStatus: () => statusRef.current }));
 
   if (err) {
     return (
@@ -233,21 +264,29 @@ const CameraCapture = forwardRef(function CameraCapture({
       position: "relative", width: "100%", height: "100%", borderRadius: 14,
       overflow: "hidden", background: "#000", display: "flex", alignItems: "center", justifyContent: "center",
     }}>
-      {hasLive ? (
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          style={{ width: "100%", height: "100%", objectFit: "cover", transform: isUser ? "scaleX(-1)" : "none" }}
-        />
-      ) : (
-        <>
-          <video ref={videoRef} playsInline muted style={{ display: "none" }} />
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "radial-gradient(ellipse at center, #2a323c 0%, #111 70%)",
-          }} />
-        </>
+      {/* video는 항상 같은 노드 — remount 시 스트림이 끊기지 않게 */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        autoPlay
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          transform: isUser ? "scaleX(-1)" : "none",
+          opacity: status === "live" ? 1 : 0,
+        }}
+      />
+      {status !== "live" && (
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse at center, #2a323c 0%, #111 70%)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: "rgba(255,255,255,.75)", fontSize: 13, fontWeight: 600,
+        }}>
+          {status === "starting" ? "카메라 준비 중…" : soft ? "" : "카메라 없음"}
+        </div>
       )}
       <div style={{
         position: "absolute", inset: 0, display: "flex", alignItems: "center",

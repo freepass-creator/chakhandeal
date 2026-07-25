@@ -29,6 +29,19 @@ function demoId() {
   return { name: u.name, birth: u.birth, phone: u.phone };
 }
 
+/** 실기기(폰)에서는 soft 끄고 실제 카메라만 사용 */
+function useDesktopSoft() {
+  const [soft, setSoft] = useState(false);
+  useEffect(() => {
+    if (!DEMO_MODE) { setSoft(false); return; }
+    const ua = navigator.userAgent || "";
+    const phone = /iPhone|iPad|iPod|Android/i.test(ua)
+      || (navigator.maxTouchPoints > 1 && window.matchMedia("(pointer: coarse)").matches);
+    setSoft(!phone);
+  }, []);
+  return soft;
+}
+
 /**
  * 본인확인
  * DEMO_MODE: 빈 입력·문자도 통과. 신분증/얼굴은 촬영 → 확인 → 다음.
@@ -45,6 +58,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
   const [idReady, setIdReady] = useState(false);
   const [faceReady, setFaceReady] = useState(false);
   const camRef = useRef(null);
+  const softCam = useDesktopSoft();
   const progressRef = useRef(onProgress);
   progressRef.current = onProgress;
 
@@ -113,12 +127,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
     setStage("manual");
   }
 
-  /** 촬영 → 미리보기 확인 → 다음(OCR). soft 모드면 권한 없이도 촬영본처럼 표시 */
+  /** 실폰=실제 촬영, PC 시연만 soft 폴백. 준비 전에는 가짜로 넘기지 않음 */
   function shootId() {
     if (!idReady) {
       const url = camRef.current?.capture?.() || null;
       if (!url) {
-        if (!DEMO_MODE) alert("카메라가 준비되면 다시 눌러 주세요.");
+        alert("카메라가 준비되면 다시 눌러 주세요.");
         return;
       }
       setIdImage(url);
@@ -128,12 +142,11 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
     runOcr(idImage);
   }
 
-  /** 얼굴도 촬영 → 확인 → 완료 */
   function shootFace() {
     if (!faceReady) {
       const url = camRef.current?.capture?.() || null;
       if (!url) {
-        if (!DEMO_MODE) alert("카메라가 준비되면 다시 눌러 주세요.");
+        alert("카메라가 준비되면 다시 눌러 주세요.");
         return;
       }
       setFaceImage(url);
@@ -236,7 +249,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
               ref={camRef}
               facing="environment"
               max={1100}
-              soft={DEMO_MODE}
+              soft={softCam}
               onCapture={(u) => {
                 if (u) { setIdImage(u); setIdReady(true); }
                 else { setIdImage(""); setIdReady(false); }
@@ -348,7 +361,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
             ref={camRef}
             facing="user"
             max={720}
-            soft={DEMO_MODE}
+            soft={softCam}
             onCapture={(u) => {
               if (u) { setFaceImage(u); setFaceReady(true); }
               else { setFaceImage(""); setFaceReady(false); }
