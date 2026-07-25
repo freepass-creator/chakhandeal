@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { findMemberByCode, createSelfConsent } from "@/lib/db";
-import { CONSENT_NOTICES, CONSENT_VERSION, CAMPAIGN_TITLE, CAMPAIGN_HEADLINE, CAMPAIGN_LEAD, CODE_LABEL, DEMO_MODE, RISK_TYPES } from "@/lib/constants";
+import { CONSENT_NOTICES, CONSENT_VERSION, CAMPAIGN_TITLE, CAMPAIGN_HEADLINE, CODE_LABEL, DEMO_MODE, RISK_TYPES } from "@/lib/constants";
 import { DEMO_CODES, demoPersonasFor } from "@/lib/demo";
 import { fmtDateTime } from "@/lib/format";
 import AuthFlow from "@/components/AuthFlow";
@@ -144,18 +144,24 @@ export default function SelfConsentPage() {
               {err && <div className="auth-err">{err}</div>}
             </form>
             {DEMO_MODE && (
-              <div className="demo-chips">
-                {DEMO_CODES.map((d) => (
-                  <button
-                    key={d.code}
-                    type="button"
-                    className="demo-chip"
-                    onClick={() => { setCode(d.code); setErr(""); findMemberByCode(d.code).then((m) => { if (m) setTarget(m); }).catch(() => {}); }}
-                  >
-                    {d.code} {d.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="demo-banner" style={{ marginTop: 8 }}>
+                  <strong>시연 모드 · 거래코드</strong>
+                  <span>아래 코드를 누르면 바로 대상이 선택됩니다.</span>
+                </div>
+                <div className="demo-chips">
+                  {DEMO_CODES.map((d) => (
+                    <button
+                      key={d.code}
+                      type="button"
+                      className="demo-chip"
+                      onClick={() => { setCode(d.code); setErr(""); findMemberByCode(d.code).then((m) => { if (m) setTarget(m); }).catch(() => {}); }}
+                    >
+                      {d.code} {d.label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
@@ -166,7 +172,6 @@ export default function SelfConsentPage() {
             <div className="confirm-co"><span className="cc-chk">✓</span> <b>{target.company}</b>{target.service && <span className="svc-tag">{target.service} 서비스</span>} <span className="cc-ok">확인됨</span></div>
             <div className="slabel">{CAMPAIGN_TITLE}</div>
             <div className="stitle">{CAMPAIGN_HEADLINE}</div>
-            <div className="sdesc">{CAMPAIGN_LEAD}</div>
             <NoticeList items={CONSENT_NOTICES} />
           </>
         )}

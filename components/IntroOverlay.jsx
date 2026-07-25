@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CAMPAIGN_LEAD } from "@/lib/constants";
 import BrandMark from "@/components/BrandMark";
 
 const SEEN_KEY = "cd_intro_seen_v1";
@@ -36,7 +37,7 @@ export default function IntroOverlay() {
           <div className="intro-head">
             <BrandMark size={28} className="intro-mark" />
             <h2 className="intro-title"><span className="accent">착한</span>거래</h2>
-            <p className="intro-tagline">동의 한 번이면<br />내 상태까지 함께 전달됩니다.</p>
+            <p className="intro-tagline">{CAMPAIGN_LEAD}</p>
           </div>
 
           <ul className="intro-vals">

@@ -31,7 +31,10 @@ export default function LoginPage() {
       <div className="c-body c-center">
         {DEMO_MODE && (
           <>
-            <div className="demo-hint">시연용 회원 — 누르면 바로 로그인됩니다.</div>
+            <div className="demo-banner">
+              <strong>시연 모드 · 회원 로그인</strong>
+              <span>아래를 누르면 해당 회원 콘솔로 바로 들어갑니다.</span>
+            </div>
             <div className="demo-chips">
               {DEMO_LOGINS.map((d) => (
                 <button
