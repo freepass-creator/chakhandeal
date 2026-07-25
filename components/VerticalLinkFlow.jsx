@@ -10,6 +10,9 @@ import FlowHeader from "@/components/FlowHeader";
 import SignaturePad from "@/components/SignaturePad";
 
 /**
+ * @deprecated 미사용 — `/go`(TrustSendFlow)·`/consent`가 정식 경로.
+ * 시연 힌트·별도 단계 라벨이 남아 있어 재연결 금지. 삭제 후보.
+ *
  * 공통 검증 링크 플로우 (pet / rent 등)
  * 1차 본인확인·동의 → 2차 링크 생성 → 카톡·문자로 URL만 전달
  */

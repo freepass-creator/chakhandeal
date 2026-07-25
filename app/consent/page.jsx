@@ -12,19 +12,17 @@ import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
 import { VerifiedCard, ConsentClauses, CertBadge } from "@/components/VerifyParts";
 
-/** 동의 흐름 한 줄 — 본인확인으로 들어가도 바가 처음부터 다시 시작하지 않음 */
-const STEP_LABELS = ["대상", "방법", "인증", "확인", "동의", "서명"];
+/**
+ * 통상 온라인 동의 절차 (상위 단계만 바)
+ * 대상 → 본인확인(안쪽 촬영 등은 부제) → 동의 → 서명 → 완료
+ */
+const STEP_LABELS = ["대상", "본인확인", "동의", "서명", "완료"];
 
-function consentStep({ target, started, verified, signing, done, authStep }) {
-  if (done || signing) return 6;
-  if (verified) return 5;
-  if (started) {
-    // AuthFlow 1~4 → 동의바 2~4 (방법·인증·확인). 얼굴/완료도 확인(4)
-    if (authStep <= 1) return 2;
-    if (authStep === 2) return 3;
-    return 4;
-  }
-  if (target) return 2; // 안내(다음 → 방법)
+function consentStep({ target, started, verified, signing, done }) {
+  if (done) return 5;
+  if (signing) return 4;
+  if (verified) return 3;
+  if (target || started) return 2; // 안내 + AuthFlow 전부 본인확인
   return 1;
 }
 
@@ -43,12 +41,11 @@ export default function SelfConsentPage() {
   const [receipt, setReceipt] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState("");
-  const [authStep, setAuthStep] = useState(1);
   const [authLabel, setAuthLabel] = useState("방법");
 
   const inAuth = started && !verified;
   const screen = done ? "done" : signing ? "sign" : verified ? "agree" : target ? "intro" : "code";
-  const step = consentStep({ target, started, verified, signing, done, authStep });
+  const step = consentStep({ target, started, verified, signing, done });
   const stepName = STEP_LABELS[step - 1] || "";
 
   useEffect(() => {
@@ -107,7 +104,7 @@ export default function SelfConsentPage() {
   function nextDisabled() {
     if (!target) return checking;
     if (verified && !signing) return DEMO_MODE ? false : !agreed;
-    if (verified && signing) return submitting;
+    if (verified && signing) return submitting || (!sig && !DEMO_MODE);
     return false;
   }
 
@@ -119,7 +116,6 @@ export default function SelfConsentPage() {
       setAgreed(false);
       setStarted(false);
       setSigning(false);
-      setAuthStep(1);
       setAuthLabel("방법");
       return;
     }
@@ -159,7 +155,7 @@ export default function SelfConsentPage() {
     <FlowHeader
       title="동의 및 내 상태 보내기"
       sub={
-        done ? "완료"
+        done ? "완료되었습니다"
           : inAuth
             ? `${target?.company || ""} · ${authLabel}`.replace(/^ · /, "")
             : target
@@ -183,12 +179,10 @@ export default function SelfConsentPage() {
           }}
           onCancel={() => {
             setStarted(false);
-            setAuthStep(1);
             setAuthLabel("방법");
           }}
           onProgress={(p) => {
             const prog = p || authProgress("method");
-            setAuthStep(prog.step);
             setAuthLabel(prog.label);
           }}
         />
@@ -217,7 +211,7 @@ export default function SelfConsentPage() {
         {target && !verified && (
           <>
             <div className="confirm-co"><span className="cc-chk">✓</span> <b>{target.company}</b>{target.service && <span className="svc-tag">{target.service}</span>} <span className="cc-ok">{CODE_LABEL} {target.code}</span></div>
-            <div className="slabel">2. 방법</div>
+            <div className="slabel">2. 본인확인</div>
             <div className="stitle">{CAMPAIGN_HEADLINE}</div>
             <div className="sdesc">{CAMPAIGN_TITLE}</div>
             <NoticeList items={CONSENT_NOTICES} />
@@ -227,7 +221,7 @@ export default function SelfConsentPage() {
         {verified && !signing && !done && (
           <>
             <VerifiedCard v={verified} />
-            <div className="slabel">5. 동의</div>
+            <div className="slabel">3. 동의</div>
             <div className="stitle">아래 내용에 동의해 주세요</div>
             <div className="sdesc" style={{ marginBottom: 8 }}>
               동의하면 동의 기록과 <b>내 상태 검증</b>이 <b>{target.company}</b> 콘솔에 <b>함께 전달됩니다</b>.
@@ -242,7 +236,7 @@ export default function SelfConsentPage() {
 
         {verified && signing && !done && (
           <>
-            <div className="slabel">6. 서명</div>
+            <div className="slabel">4. 서명</div>
             <div className="stitle">동의 확인을 위해 서명해 주세요</div>
             <div className="sdesc" style={{ marginBottom: 10 }}>{target.company}와의 거래 동의를 본인이 직접 확인하는 전자서명입니다.</div>
             <div style={{ flex: 1, minHeight: 220, display: "flex" }}>

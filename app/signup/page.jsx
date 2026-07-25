@@ -98,7 +98,7 @@ export default function SignupPage() {
               <input type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={onBiz} />
             </label>
             {ocr === "loading" && <div className="hint">사업자등록증을 읽는 중…</div>}
-            {ocr === "done" && <div className="hint" style={{ color: "#0f7f5b" }}>✓ 회사정보를 자동으로 채웠어요. 틀리면 고쳐 주세요.</div>}
+            {ocr === "done" && <div className="hint" style={{ color: "var(--safe)" }}>✓ 회사정보를 자동으로 채웠어요. 틀리면 고쳐 주세요.</div>}
             {ocr === "fail" && <div className="hint">자동 인식이 안 됐어요. 아래에 직접 입력해 주세요.</div>}
           </div>
           <div className="field"><label>회사·상호명 <span className="req">*</span></label><input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="예: 스피드렌탈" /></div>

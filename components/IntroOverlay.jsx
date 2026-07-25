@@ -56,7 +56,7 @@ export default function IntroOverlay() {
           </ul>
         </div></div>
 
-        <button type="button" className="intro-ok" onClick={close}>알겠어요</button>
+        <button type="button" className="btn btn-primary btn-block intro-ok" onClick={close}>알겠어요</button>
         <p className="intro-once">이 안내는 처음 한 번만 보여 드려요.</p>
       </div>
     </div>

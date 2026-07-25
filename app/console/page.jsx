@@ -63,7 +63,7 @@ export default function Console() {
       />
       <div className="container">
         <div className="tabs">
-          <button className={`tab ${tab === "send" ? "active" : ""}`} onClick={() => setTab("send")}><Icon name="check" /> 동의 현황</button>
+          <button className={`tab ${tab === "send" ? "active" : ""}`} onClick={() => setTab("send")}><Icon name="send" /> 안내·동의</button>
           <button className={`tab ${tab === "certs" ? "active" : ""}`} onClick={() => setTab("certs")}><Icon name="file" /> 검증 수신</button>
           <button className={`tab ${tab === "register" ? "active" : ""}`} onClick={() => setTab("register")}><Icon name="plus" /> {VIOLATION_LABEL}</button>
         </div>
@@ -113,7 +113,7 @@ function CertsTab({ toast, company, code, vertical }) {
       {loading ? <><div className="skel" /><div className="skel" /></> :
         list.length === 0 ? <div className="empty">아직 수신된 검증이 없습니다. 손님이 동의를 완료하면 여기에 표시됩니다.</div> :
           list.map((c) => (
-            <div key={c.id} style={{ borderBottom: "1px solid #eef2f6" }}>
+            <div key={c.id} style={{ borderBottom: "1px solid var(--line2)" }}>
               <div className="risk-row" style={{ borderBottom: "none" }}>
                 <div style={{ flex: 1 }}>
                   <div className="type">{mask(c.subjectName)} · {c.trustLevel || "-"}</div>
@@ -150,7 +150,58 @@ function SendTab({ toast, company, code, vertical }) {
   const [showPreview, setShowPreview] = useState(false);
   const [showStatusPreview, setShowStatusPreview] = useState(false);
   const [open, setOpen] = useState(null);
-  const copyText = (t) => { navigator.clipboard?.writeText(t); toast("복사되었습니다.", "safe"); };
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const consentUrl = origin && code ? `${origin}/consent?code=${code}` : "";
+
+  async function copyText(t, okMsg = "복사되었습니다.") {
+    if (!t) { toast("복사할 내용이 없습니다.", "danger"); return false; }
+    try {
+      await navigator.clipboard?.writeText(t);
+      toast(okMsg, "safe");
+      return true;
+    } catch {
+      toast("복사에 실패했습니다. 길게 눌러 복사해 주세요.", "danger");
+      return false;
+    }
+  }
+
+  async function copyConsentLink() {
+    if (!code || !consentUrl) {
+      toast(`${CODE_LABEL}가 아직 없습니다. 승인 후 이용해 주세요.`, "danger");
+      return;
+    }
+    const ok = await copyText(consentUrl, "동의 링크가 복사되었습니다.");
+    if (ok) {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  }
+
+  async function shareConsentLink() {
+    if (!code || !consentUrl) {
+      toast(`${CODE_LABEL}가 아직 없습니다. 승인 후 이용해 주세요.`, "danger");
+      return;
+    }
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "착한거래 동의 안내",
+          text: `${company} 거래 동의 및 내 상태 보내기 링크입니다.`,
+          url: consentUrl,
+        });
+        return;
+      } catch {
+        /* 사용자가 취소하면 무시 */
+      }
+    }
+    await copyConsentLink();
+  }
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -166,10 +217,42 @@ function SendTab({ toast, company, code, vertical }) {
         <div className="card-desc">
           링크를 보내면 손님이 <b>동의 및 내 상태 보내기</b>를 진행합니다. 동의가 완료되면 동의 목록·검증 수신에 함께 쌓입니다.
         </div>
-        <button className="btn btn-primary btn-block" onClick={() => copyText(`${location.origin}/consent?code=${code}`)}>
-          <Icon name="send" /> 동의 안내 링크 복사
-        </button>
-        <div className="hint" style={{ marginTop: 12 }}>{CODE_LABEL}: <b className="mono">{code || "—"}</b>{code && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => copyText(code)}>복사</button>}</div>
+        {consentUrl && (
+          <div className="share-url" style={{ marginTop: 4, marginBottom: 12 }}>{consentUrl}</div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            type="button"
+            className="btn"
+            style={{ flex: 1 }}
+            disabled={!code}
+            onClick={copyConsentLink}
+          >
+            <Icon name="file" /> {copiedLink ? "복사됨" : "복사"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ flex: 1 }}
+            disabled={!code}
+            onClick={shareConsentLink}
+          >
+            <Icon name="send" /> 공유
+          </button>
+        </div>
+        <div className="hint" style={{ marginTop: 12 }}>
+          {CODE_LABEL}: <b className="mono">{code || "—"}</b>
+          {code && (
+            <button type="button" className="btn btn-sm" style={{ marginLeft: 8 }} onClick={() => copyText(code)}>
+              복사
+            </button>
+          )}
+        </div>
+        {!code && (
+          <div className="hint" style={{ marginTop: 8, color: "var(--danger)" }}>
+            {CODE_LABEL}가 없으면 링크를 보낼 수 없습니다. 승인 후 다시 로그인해 주세요.
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -177,7 +260,7 @@ function SendTab({ toast, company, code, vertical }) {
           <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)", marginLeft: 6 }}>
             · {list.filter((c) => c.status === "completed").length}건
           </span>
-          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>↻ 새로고침</button>
+          <button type="button" className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>↻ 새로고침</button>
         </div>
         <div className="card-desc">손님이 동의하면 여기에 남습니다. 캡처가 아니라 이 기록만 확인하세요.</div>
         {loading ? <><div className="skel" /><div className="skel" /></> :
@@ -185,20 +268,20 @@ function SendTab({ toast, company, code, vertical }) {
             list.filter((c) => c.status === "completed").map((c) => {
               const hasPhotos = c.photos?.id || c.photos?.face;
               return (
-                <div key={c.id} style={{ borderBottom: "1px solid #eef2f6" }}>
+                <div key={c.id} style={{ borderBottom: "1px solid var(--line2)" }}>
                   <div className="risk-row" style={{ borderBottom: "none" }}>
                     <div>
                       <div className="type">{mask(c.name)}{c.verified?.birth ? ` · ${fmtBirth(c.verified.birth)}` : ""}</div>
                       <div className="meta">{fmtDate(c.completedAt || c.createdAt)} 제출{c.cert?.unresolved && c.cert.types?.length ? ` · ${c.cert.types.map((t) => RISK_TYPES[t] || t).join(", ")}` : ""}</div>
                     </div>
                     <div className="sp" />
-                    {hasPhotos && <button className="btn btn-sm" style={{ marginRight: 8 }} onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? "대조 닫기" : "신분증·얼굴 대조"}</button>}
+                    {hasPhotos && <button type="button" className="btn btn-sm" style={{ marginRight: 8 }} onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? "대조 닫기" : "신분증·얼굴 대조"}</button>}
                     <CertBadge cert={c.cert} />
                   </div>
                   {open === c.id && hasPhotos && (
                     <div style={{ display: "flex", gap: 10, padding: "2px 0 12px" }}>
-                      {c.photos?.id && <figure style={{ flex: 1, margin: 0 }}><img src={c.photos.id} alt="신분증" style={{ width: "100%", borderRadius: 8, border: "1px solid #e6ebf1" }} /><figcaption style={{ fontSize: 11, color: "#7c8a98", textAlign: "center", marginTop: 4 }}>신분증</figcaption></figure>}
-                      {c.photos?.face && <figure style={{ flex: 1, margin: 0 }}><img src={c.photos.face} alt="본인 얼굴" style={{ width: "100%", borderRadius: 8, border: "1px solid #e6ebf1" }} /><figcaption style={{ fontSize: 11, color: "#7c8a98", textAlign: "center", marginTop: 4 }}>본인 얼굴</figcaption></figure>}
+                      {c.photos?.id && <figure style={{ flex: 1, margin: 0 }}><img src={c.photos.id} alt="신분증" style={{ width: "100%", borderRadius: "var(--radius)", border: "1px solid var(--line)" }} /><figcaption style={{ fontSize: 11, color: "var(--ink3)", textAlign: "center", marginTop: 4 }}>신분증</figcaption></figure>}
+                      {c.photos?.face && <figure style={{ flex: 1, margin: 0 }}><img src={c.photos.face} alt="본인 얼굴" style={{ width: "100%", borderRadius: "var(--radius)", border: "1px solid var(--line)" }} /><figcaption style={{ fontSize: 11, color: "var(--ink3)", textAlign: "center", marginTop: 4 }}>본인 얼굴</figcaption></figure>}
                     </div>
                   )}
                 </div>
@@ -208,7 +291,7 @@ function SendTab({ toast, company, code, vertical }) {
 
       <div className="card">
         <div className="card-title">손님이 보는 동의 내용
-          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowPreview((v) => !v)}>{showPreview ? "접기" : "미리보기"}</button>
+          <button type="button" className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowPreview((v) => !v)}>{showPreview ? "접기" : "미리보기"}</button>
         </div>
         {showPreview && (
           <>
@@ -221,7 +304,7 @@ function SendTab({ toast, company, code, vertical }) {
 
       <div className="card">
         <div className="card-title">손님이 보는 상태확인 내용
-          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowStatusPreview((v) => !v)}>{showStatusPreview ? "접기" : "미리보기"}</button>
+          <button type="button" className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowStatusPreview((v) => !v)}>{showStatusPreview ? "접기" : "미리보기"}</button>
         </div>
         {showStatusPreview && (
           <>
@@ -233,13 +316,13 @@ function SendTab({ toast, company, code, vertical }) {
 
       <div className="card">
         <div className="card-title">개인정보 동의서에 항목 추가
-          <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowTpl((v) => !v)}>{showTpl ? "접기" : "양식 보기"}</button>
+          <button type="button" className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowTpl((v) => !v)}>{showTpl ? "접기" : "양식 보기"}</button>
         </div>
         {showTpl && (
           <>
             <div className="card-desc"><b>계약서는 그대로 두고</b>, 기존 「개인정보 수집·이용 동의서」에 아래 <b>제3자 제공 동의 항목만 별도로</b> 추가하면 됩니다. (디지털 동의를 못 쓰는 경우 대안) <b>이 방식으로 받은 동의서는 회원이 직접 보관·관리</b>하며, 착한거래 플랫폼에는 기록되지 않습니다.</div>
             <div className="tpl-label">개인정보 제3자 제공 동의 항목
-              <button className="btn btn-sm" onClick={() => copyText(CONTRACT_CONSENT_FORM)}><Icon name="file" /> 복사</button></div>
+              <button type="button" className="btn btn-sm" onClick={() => copyText(CONTRACT_CONSENT_FORM)}><Icon name="file" /> 복사</button></div>
             <pre className="tpl">{CONTRACT_CONSENT_FORM}</pre>
           </>
         )}

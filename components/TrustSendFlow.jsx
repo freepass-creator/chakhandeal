@@ -10,10 +10,12 @@ import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
 
 /**
- * 내 상태 보기
- * - 본인확인 중: AuthFlow 실제 단계 표시
- * - 확인 후: 페이지에 복사/전달, 하단바는 처음으로
+ * 내 상태 보기 — 통상 조회 절차
+ * 본인확인(안쪽 촬영 등은 부제) → 내 상태
+ * 복사/전달은 본문, 하단은 처음으로
  */
+const STEP_LABELS = ["본인확인", "내 상태"];
+
 export default function TrustSendFlow() {
   const router = useRouter();
   const [phase, setPhase] = useState("auth"); // auth | view
@@ -24,11 +26,10 @@ export default function TrustSendFlow() {
   const [copied, setCopied] = useState(false);
   const [provider, setProvider] = useState(null);
   const [boot, setBoot] = useState(false);
-  const [authStep, setAuthStep] = useState(1);
   const [authLabel, setAuthLabel] = useState("방법");
 
   const vertical = provider?.vertical || DEFAULT_VERTICAL;
-  const AUTH_LABELS = ["방법", "인증", "확인", "완료"];
+  const barStep = phase === "view" ? 2 : 1;
 
   useEffect(() => {
     let cancelled = false;
@@ -158,12 +159,15 @@ export default function TrustSendFlow() {
     <FlowHeader
       title="내 상태 보기"
       sub={
-        phase === "view" ? "내 상태"
-          : boot && provider ? `${provider.company} · ${authLabel}` : authLabel
+        phase === "view"
+          ? "내 상태를 확인해 주세요"
+          : boot && provider
+            ? `${provider.company} · ${authLabel}`
+            : authLabel
       }
-      steps={phase === "auth" ? 4 : 0}
-      step={phase === "auth" ? authStep : 0}
-      stepLabels={phase === "auth" ? AUTH_LABELS : null}
+      steps={STEP_LABELS.length}
+      step={barStep}
+      stepLabels={STEP_LABELS}
     />
   );
 
@@ -186,7 +190,6 @@ export default function TrustSendFlow() {
           onCancel={() => router.push("/")}
           onProgress={(p) => {
             const prog = p || authProgress("method");
-            setAuthStep(prog.step);
             setAuthLabel(prog.label);
           }}
         />
@@ -201,7 +204,7 @@ export default function TrustSendFlow() {
       <div className="c-body anim-in">
         {verified && draft && (
           <>
-            <div className="slabel">내 상태</div>
+            <div className="slabel">2. 내 상태</div>
             <div className="stitle">{verified.name}님, 확인해 주세요</div>
             <div className="receipt" style={{ marginTop: 4 }}>
               <div className="r"><span className="k">상태</span><span className="v">{draft.trustLevel}</span></div>
@@ -225,16 +228,16 @@ export default function TrustSendFlow() {
                   disabled={busy || !draft}
                   onClick={copyShare}
                 >
-                  {busy ? "준비 중…" : copied ? "복사됨" : "복사하기"}
+                  {busy ? "준비 중…" : copied ? "복사됨" : "복사"}
                 </button>
                 <button
                   type="button"
-                  className="btn btn-safe"
+                  className="btn btn-primary"
                   style={{ flex: 1 }}
                   disabled={busy || !draft}
                   onClick={shareNative}
                 >
-                  {busy ? "준비 중…" : "전달하기"}
+                  {busy ? "준비 중…" : "공유"}
                 </button>
               </div>
             </div>
