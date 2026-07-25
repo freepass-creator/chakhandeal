@@ -24,15 +24,15 @@ body{
 button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 a{color:inherit;text-decoration:none}
 
-/* ---- 디바이스 셸: 기본=모바일 전체 / PC만 프레임 ---- */
+/* ---- 화면은 핸드폰 전용. PC에서는 폰 프레임으로만 보임 ---- */
 .device{
-  width:100%;max-width:480px;margin:0 auto;flex:1;min-height:0;
+  width:100%;max-width:none;margin:0;flex:1;min-height:0;
   display:flex;flex-direction:column;background:#fff;position:relative;
 }
 .device-toolbar{display:none}
 
-/* PC만 — 실폰·터치 기기는 프레임 없음 (가로모드 포함) */
-@media (hover: hover) and (pointer: fine) and (min-width: 900px){
+/* PC·노트북: 기본 뷰 = 핸드폰 화면만 (앱을 데스크톱 레이아웃으로 펼치지 않음) */
+@media (min-width: 560px){
   body{
     background:
       radial-gradient(1200px 600px at 50% -10%,rgba(21,48,76,.14),transparent 60%),
@@ -71,6 +71,29 @@ a{color:inherit;text-decoration:none}
   }
   .device[data-size="android"]{border-radius:22px}
   .device[data-size="max"]{border-radius:34px}
+}
+
+/* 실제 핸드폰·태블릿(터치): 프레임 없이 전체 화면 — 가로모드 포함 */
+@media (hover: none), (pointer: coarse){
+  body{
+    background:var(--bg) !important;
+    align-items:stretch !important;
+    justify-content:flex-start !important;
+    padding:0 !important;
+    gap:0 !important;
+    overflow:hidden;
+  }
+  .device-toolbar{display:none !important}
+  .device{
+    flex:1 1 auto !important;
+    width:100% !important;
+    max-width:none !important;
+    height:auto !important;
+    min-height:0 !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+    overflow:hidden;
+  }
 }
 
 /* ---- 가맹사 콘솔 ---- */

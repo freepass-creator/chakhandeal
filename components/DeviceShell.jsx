@@ -34,7 +34,7 @@ export default function DeviceShell({ children }) {
 
   return (
     <>
-      <div className="device-toolbar" aria-label="PC 시연용 화면 크기">
+      <div className="device-toolbar" aria-label="핸드폰 화면 크기">
         {DEVICE_FRAMES.map((f) => (
           <button
             key={f.id}

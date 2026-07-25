@@ -1,5 +1,5 @@
 // 착한거래 서비스워커 — 설치용. HTML/문서 네비게이션은 캐시하지 않음(옛 화면·죽은 링크 방지).
-const CACHE = "chakan-v5";
+const CACHE = "chakan-v6";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(self.skipWaiting());
