@@ -28,8 +28,8 @@ export default function Landing() {
           <button type="button" className="land-card primary" onClick={() => router.push("/consent")}>
             <span className="lc-ic"><Icon name="check" size={22} /></span>
             <span className="lc-tx">
-              <b>이번 거래에 동의</b>
-              <span>요청 코드로 상대를 확인하고 동의합니다.</span>
+              <b>동의 및 내 상태 보내기</b>
+              <span>상대를 확인하고 동의하면, 내 상태도 함께 전달됩니다.</span>
             </span>
             <span className="lc-arrow">→</span>
           </button>
@@ -37,8 +37,8 @@ export default function Landing() {
           <button type="button" className="land-card" onClick={() => router.push("/go")}>
             <span className="lc-ic"><Icon name="send" size={22} /></span>
             <span className="lc-tx">
-              <b>내 상태 보내기</b>
-              <span>내 상태를 확인한 뒤, 링크로 보냅니다.</span>
+              <b>내 상태 보기</b>
+              <span>내 상태를 먼저 확인하고, 필요하면 링크로 보냅니다.</span>
             </span>
             <span className="lc-arrow">→</span>
           </button>

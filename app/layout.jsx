@@ -1,5 +1,6 @@
 import "./globals.css";
 import PWARegister from "@/components/PWARegister";
+import DeviceShell from "@/components/DeviceShell";
 
 export const metadata = {
   metadataBase: process.env.VERCEL_URL ? new URL(`https://${process.env.VERCEL_URL}`) : undefined,
@@ -37,9 +38,9 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <PWARegister />
-        <div className="device">
+        <DeviceShell>
           {children}
-        </div>
+        </DeviceShell>
       </body>
     </html>
   );

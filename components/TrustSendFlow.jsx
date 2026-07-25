@@ -3,52 +3,52 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_VERTICAL, DEMO_MODE, CODE_LABEL } from "@/lib/constants";
-import { DEMO_CODES } from "@/lib/demo";
+import { demoPersonasFor } from "@/lib/demo";
 import { findMemberByCode } from "@/lib/db";
 import { fmtDateTime } from "@/lib/format";
 import AuthFlow from "@/components/AuthFlow";
 import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
 
-const LAST_CODE_KEY = "cd_last_provider_code";
-
 /**
- * 내 상태 보내기
- * 1) 본인확인 → 2) 내 상태 확인 → 3) 보내기
- * ?code= 또는 직전 동의 코드가 있으면 회원 콘솔 검증 수신에 귀속
+ * 내 상태 보기 — 파이프라인 2단계만.
+ *   1) 본인확인  2) 내 상태
+ * 누군가에게 전달하고 싶을 때만 링크로 보냄 (단계 아님 · 선택).
+ * 손님은 업종을 고르지 않음. ?code= 있으면 그 회원 업종.
  */
 export default function TrustSendFlow() {
   const router = useRouter();
-  const [phase, setPhase] = useState("intro"); // intro | auth | view | send
+  const [phase, setPhase] = useState("auth"); // auth | view | send(선택)
   const [verified, setVerified] = useState(null);
   const [draft, setDraft] = useState(null);
   const [issued, setIssued] = useState(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [provider, setProvider] = useState(null); // { company, code, service? }
+  const [provider, setProvider] = useState(null);
+  const [boot, setBoot] = useState(false);
 
-  const step = phase === "send" ? 4 : phase === "view" ? 3 : phase === "auth" ? 2 : 1;
-  const headerLabels = ["시작", "본인확인", "내 상태", "보내기"];
+  /** 진행바는 본인확인(1)·내 상태(2)만. 전달 화면은 단계 밖 */
+  const inPipeline = phase === "auth" || phase === "view";
+  const step = phase === "view" ? 2 : 1;
+  const vertical = provider?.vertical || DEFAULT_VERTICAL;
 
   useEffect(() => {
-    const q = (new URLSearchParams(window.location.search).get("code") || "").replace(/\D/g, "");
-    let saved = "";
-    try { saved = (sessionStorage.getItem(LAST_CODE_KEY) || "").replace(/\D/g, ""); } catch { /* */ }
-    const code = q || saved;
-    if (!code) return;
-    findMemberByCode(code).then((m) => {
-      if (!m) return;
-      setProvider(m);
-      try { sessionStorage.setItem(LAST_CODE_KEY, m.code || code); } catch { /* */ }
-    }).catch(() => {});
-  }, []);
+    let cancelled = false;
+    try { sessionStorage.removeItem("cd_last_provider_code"); } catch { /* */ }
 
-  async function bindCode(code) {
-    const m = await findMemberByCode(code);
-    if (!m) { alert(`${CODE_LABEL}를 확인할 수 없습니다.`); return; }
-    setProvider(m);
-    try { sessionStorage.setItem(LAST_CODE_KEY, m.code || code); } catch { /* */ }
-  }
+    (async () => {
+      const code = (new URLSearchParams(window.location.search).get("code") || "").replace(/\D/g, "");
+      if (code) {
+        try {
+          const m = await findMemberByCode(code);
+          if (!cancelled && m) setProvider(m);
+        } catch { /* */ }
+      }
+      if (!cancelled) setBoot(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
 
   async function loadDraft(v) {
     setBusy(true);
@@ -59,7 +59,7 @@ export default function TrustSendFlow() {
         body: JSON.stringify({
           name: v.name,
           birth: v.birth,
-          vertical: DEFAULT_VERTICAL,
+          vertical,
           method: v.method,
         }),
       });
@@ -82,7 +82,6 @@ export default function TrustSendFlow() {
     setVerified(v);
     const ok = await loadDraft(v);
     if (ok) setPhase("view");
-    else setPhase("intro");
   }
 
   function buildShare(id) {
@@ -106,7 +105,7 @@ export default function TrustSendFlow() {
           birth: verified.birth,
           phone: verified.phone,
           method: verified.method,
-          vertical: DEFAULT_VERTICAL,
+          vertical,
           providerCode: provider?.code || "",
           signed: true,
         }),
@@ -148,17 +147,15 @@ export default function TrustSendFlow() {
 
   const header = (
     <FlowHeader
-      title="내 상태 보내기"
+      title="내 상태 보기"
       sub={
-        phase === "send" ? "상대에게 보내기"
-          : phase === "view" ? "내 상태 확인"
-            : phase === "auth" ? "본인확인"
-              : provider ? `${provider.company}에 보낼 준비`
-                : "먼저 내 상태를 확인합니다"
+        phase === "send" ? "링크로 전달 (선택)"
+          : phase === "view" ? "내 상태"
+            : boot && provider ? `${provider.company} · 본인확인` : "본인확인"
       }
-      steps={4}
-      step={step}
-      stepLabels={headerLabels}
+      steps={inPipeline ? 2 : 0}
+      step={inPipeline ? step : 0}
+      stepLabels={inPipeline ? ["본인확인", "내 상태"] : null}
     />
   );
 
@@ -166,7 +163,22 @@ export default function TrustSendFlow() {
     return (
       <div className="app">
         {header}
-        <AuthFlow onVerified={onVerified} onCancel={() => setPhase("intro")} />
+        {boot && provider && (
+          <div className="c-body" style={{ paddingBottom: 0 }}>
+            <div className="confirm-co">
+              <span className="cc-chk">✓</span>
+              <b>{provider.company}</b>
+              {provider.service && <span className="svc-tag">{provider.service}</span>}
+              <span className="cc-ok">{CODE_LABEL} {provider.code}</span>
+            </div>
+          </div>
+        )}
+        {DEMO_MODE && (
+          <div className="c-body" style={{ paddingTop: boot && provider ? 8 : undefined, paddingBottom: 0 }}>
+            <div className="demo-hint">시연용 — 샘플로 바로 통과할 수 있어요.</div>
+          </div>
+        )}
+        <AuthFlow onVerified={onVerified} onCancel={() => router.push("/")} personas={demoPersonasFor(vertical)} />
       </div>
     );
   }
@@ -176,48 +188,6 @@ export default function TrustSendFlow() {
       {header}
 
       <div className="c-body anim-in" key={phase}>
-        {phase === "intro" && (
-          <>
-            {provider && (
-              <div className="confirm-co">
-                <span className="cc-chk">✓</span>
-                <b>{provider.company}</b>
-                {provider.service && <span className="svc-tag">{provider.service}</span>}
-                <span className="cc-ok">{CODE_LABEL} {provider.code}</span>
-              </div>
-            )}
-            <div className="slabel">순서</div>
-            <div className="stitle">내 상태를 확인하고,<br />필요할 때 보내요</div>
-            <div className="sdesc">
-              1. <b>신분증·얼굴</b>로 본인확인한 뒤 <b>내 상태</b>를 봅니다.<br />
-              2. 상대에게 보여 줄 때만 <b>링크로 보냅니다</b>.
-            </div>
-            <div className="sdesc" style={{ marginTop: 10 }}>
-              이력이 없으면 <b>신규</b>입니다. 불리하게 보이지 않습니다.
-              {provider && <> 링크는 <b>{provider.company}</b> 콘솔 검증 수신에도 남습니다.</>}
-            </div>
-            {!provider && DEMO_MODE && (
-              <>
-                <div className="demo-hint" style={{ marginTop: 12 }}>
-                  시연 — 회원사에 귀속하려면 아래 코드를 고르세요. (없어도 직접 전달 가능)
-                </div>
-                <div className="demo-chips">
-                  {DEMO_CODES.map((d) => (
-                    <button key={d.code} type="button" className="demo-chip" onClick={() => bindCode(d.code)}>
-                      {d.code} {d.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-            {DEMO_MODE && (
-              <div className="demo-hint" style={{ marginTop: 12 }}>
-                시연용 — 본인확인에서 샘플(김신규·홍길동)으로 바로 통과할 수 있어요.
-              </div>
-            )}
-          </>
-        )}
-
         {phase === "view" && verified && draft && (
           <>
             <div className="slabel">내 상태</div>
@@ -230,7 +200,7 @@ export default function TrustSendFlow() {
             </div>
             <p className="sdesc" style={{ marginTop: 12 }}>{draft.notice}</p>
             <p className="sdesc" style={{ marginTop: 8 }}>
-              이 화면을 캡처해 보내지 마세요. 보낼 때는 다음에서 <b>링크</b>로 보냅니다.
+              확인만 하고 끝내도 됩니다. 누군가에게 보여 주고 싶을 때만 링크로 전달하세요.
             </p>
           </>
         )}
@@ -238,31 +208,28 @@ export default function TrustSendFlow() {
         {phase === "send" && issued && (
           <div className="done">
             <div className="big">✓</div>
-            <h2>보낼 준비가 됐어요</h2>
+            <h2>전달할 링크가 준비됐어요</h2>
             <p>
-              방금 확인한 상태를 링크로 보냅니다.<br />
+              방금 확인한 상태를 링크로 전달합니다.<br />
               캡처 대신 <b>아래 링크만</b> 카톡·문자로 보내 주세요.
               {provider && <><br /><b>{provider.company}</b> 콘솔 검증 수신에도 기록됩니다.</>}
             </p>
             <div className="share-url">{issued.shareUrl}</div>
+            <button type="button" className="text-link" style={{ marginTop: 14 }} onClick={() => setPhase("view")}>
+              ← 내 상태로 돌아가기
+            </button>
           </div>
         )}
       </div>
 
-      {phase === "intro" && (
-        <StepFooter
-          prev={{ onClick: () => router.push("/") }}
-          next={{ label: "내 상태 확인하기", onClick: () => setPhase("auth") }}
-        />
-      )}
       {phase === "view" && (
         <StepFooter
-          prev={{ onClick: () => { setVerified(null); setDraft(null); setPhase("intro"); } }}
-          next={{
-            label: busy ? "준비 중…" : "이 내용 보내기",
+          prev={{
+            label: busy ? "준비 중…" : "링크로 전달",
             disabled: busy || !draft,
             onClick: prepareSend,
           }}
+          next={{ label: "확인 완료", onClick: () => router.push("/") }}
         />
       )}
       {phase === "send" && (

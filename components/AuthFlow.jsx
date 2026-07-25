@@ -27,7 +27,8 @@ export function authProgress(stage) {
 
 // 본인확인 — onProgress로 헤더 진행바 연동
 // onVerified({ name, birth(6), phone, method, idImage, faceImage })
-export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onProgress = null }) {
+// personas: 시연 샘플 칩 (DEMO_USERS 키) — 업종 맥락에 맞는 '이력 있음' 사례를 노출
+export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onProgress = null, personas = ["clean", "hit"] }) {
   // method=방법 선택 | (신분증) idcam·ocr·review·manual·selfie | (휴대폰) phone·phonecode | done
   const [stage, setStage] = useState("method");
   const [ocrUsed, setOcrUsed] = useState(false);
@@ -126,21 +127,19 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
           </button>
           <button type="button" className="auth-opt" onClick={() => setStage("phone")}>
             <span className="ic phone"><Icon name="phone" size={18} /></span>
-            <span className="tx">휴대폰으로 인증<small>PASS·통신사 · 연동 예정 · 보조</small></span>
+            <span className="tx">휴대폰으로 인증<small>{DEMO_MODE ? "시연용 샘플 인증" : "PASS·통신사 본인확인"}</small></span>
             <span className="arr">›</span>
           </button>
           {DEMO_MODE && (
             <>
               <div className="demo-hint" style={{ marginTop: 14 }}>시연용 — 카메라 없이 샘플로 통과할 수 있어요.</div>
               <div className="demo-chips">
-                <button type="button" className="demo-chip safe" onClick={() => {
-                  setStage("done");
-                  setTimeout(() => onVerified(demoVerified("clean")), 400);
-                }}>{DEMO_USERS.clean.label}</button>
-                <button type="button" className="demo-chip" onClick={() => {
-                  setStage("done");
-                  setTimeout(() => onVerified(demoVerified("hit")), 400);
-                }}>{DEMO_USERS.hit.label}</button>
+                {personas.filter((k) => DEMO_USERS[k]).map((k) => (
+                  <button key={k} type="button" className={`demo-chip ${k === "clean" ? "safe" : ""}`} onClick={() => {
+                    setStage("done");
+                    setTimeout(() => onVerified(demoVerified(k)), 400);
+                  }}>{DEMO_USERS[k].label}</button>
+                ))}
               </div>
             </>
           )}
@@ -222,8 +221,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
         <div className="c-body anim-in" key={stage}>
           <div className="slabel">휴대폰 본인인증</div>
           <div className="stitle">휴대폰으로 본인인증</div>
-          <div className="sdesc">통신사 본인확인으로 인증합니다.</div>
-          <div className="demo-hint">시연용 — PASS 연동 전입니다. 아래 샘플로 채운 뒤, 인증번호는 아무 6자리나 넣으면 됩니다.</div>
+          <div className="sdesc">시연용으로 본인확인을 진행합니다.</div>
+          {DEMO_MODE ? (
+            <div className="demo-hint">시연용 — PASS 연동 전입니다. 아래 샘플로 채운 뒤, 인증번호는 아무 6자리나 넣으면 됩니다.</div>
+          ) : (
+            <div className="demo-hint">PASS·통신사 연동 준비 중입니다. 신분증·얼굴 인증을 이용해 주세요.</div>
+          )}
           {DEMO_MODE && (
             <div className="demo-chips">
               <button type="button" className="demo-chip safe" onClick={() => {
@@ -233,12 +236,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
               }}>샘플 채우기</button>
             </div>
           )}
-          <div className="field"><label>이름</label><input value={a.name} onChange={set("name")} placeholder="홍길동" /></div>
-          <div className="field"><label>생년월일 6자리</label><input value={a.birth} onChange={set("birth")} inputMode="numeric" maxLength={6} placeholder="900715" /></div>
-          <div className="field"><label>통신사</label><select value={carrier} onChange={(e) => setCarrier(e.target.value)}><option value="">선택</option>{CARRIERS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
-          <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" /></div>
+          <div className="field"><label>이름</label><input value={a.name} onChange={set("name")} placeholder="홍길동" disabled={!DEMO_MODE} /></div>
+          <div className="field"><label>생년월일 6자리</label><input value={a.birth} onChange={set("birth")} inputMode="numeric" maxLength={6} placeholder="900715" disabled={!DEMO_MODE} /></div>
+          <div className="field"><label>통신사</label><select value={carrier} onChange={(e) => setCarrier(e.target.value)} disabled={!DEMO_MODE}><option value="">선택</option>{CARRIERS.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+          <div className="field"><label>휴대폰번호</label><input value={a.phone} onChange={setPhone} inputMode="numeric" placeholder="010-0000-0000" disabled={!DEMO_MODE} /></div>
         </div>
-        <StepFooter prev={{ onClick: () => setStage("method") }} next={{ label: "인증번호 요청", disabled: !phoneFormOk, onClick: startPhoneCode }} />
+        <StepFooter prev={{ onClick: () => setStage("method") }} next={DEMO_MODE ? { label: "인증번호 요청", disabled: !phoneFormOk, onClick: startPhoneCode } : undefined} />
       </>
     );
 
@@ -255,7 +258,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
               <button type="button" className="demo-chip" onClick={() => setCode("123456")}>샘플 123456</button>
             </div>
           )}
-          <button type="button" className="text-link" onClick={startPhoneCode}>번호가 안 왔나요? 다시 요청</button>
+          <button type="button" className="text-link" onClick={startPhoneCode}>다시 요청</button>
         </div>
         <StepFooter prev={{ onClick: () => setStage("phone") }} next={{ label: "인증 완료", disabled: code.length !== 6, onClick: finishPhone }} />
       </>

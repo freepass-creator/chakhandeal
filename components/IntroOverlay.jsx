@@ -36,16 +36,16 @@ export default function IntroOverlay() {
           <div className="intro-head">
             <BrandMark size={28} className="intro-mark" />
             <h2 className="intro-title"><span className="accent">착한</span>거래</h2>
-            <p className="intro-tagline">이번 거래에 동의하고,<br />내 상태를 확인한 뒤 보내면 됩니다.</p>
+            <p className="intro-tagline">동의 한 번이면<br />내 상태까지 함께 전달됩니다.</p>
           </div>
 
           <ul className="intro-vals">
             <li>
-              <b>이번 거래에 동의</b>
-              <span>요청자가 보낸 링크로 들어오거나, 코드로 상대를 확인하고 동의합니다.</span>
+              <b>동의 및 내 상태 보내기</b>
+              <span>요청자가 보낸 링크로 들어오거나 코드로 상대를 확인하고 동의하면, 내 상태도 함께 전달됩니다.</span>
             </li>
             <li>
-              <b>내 상태 보내기</b>
+              <b>내 상태 보기</b>
               <span>먼저 내 상태를 확인하고, 필요할 때 링크로 보냅니다.</span>
             </li>
             <li>

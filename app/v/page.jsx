@@ -74,7 +74,13 @@ export default function VerifyLinkPage() {
       <StepFooter
         next={{
           label: err ? "처음으로" : "닫기",
-          onClick: () => router.push("/"),
+          onClick: () => {
+            if (typeof window !== "undefined") {
+              if (window.opener) { window.close(); return; }
+              if (window.history.length > 1) { router.back(); return; }
+            }
+            router.push("/");
+          },
         }}
       />
     </div>

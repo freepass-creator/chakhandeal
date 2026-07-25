@@ -22,6 +22,16 @@ export default function Console() {
   }, []);
 
   useEffect(() => { const s = getSession(); if (!s) router.replace("/login"); else setSession(s); }, [router]);
+  if (session === undefined) {
+    return (
+      <>
+        <AppHeader subtitle={<>회원 콘솔</>} />
+        <div className="container">
+          <div className="card"><div className="skel" /><div className="skel" /><div className="hint">로그인 확인 중…</div></div>
+        </div>
+      </>
+    );
+  }
   if (!session) return null;
   if (session.role !== "admin" && session.status && session.status !== "approved") {
     const rejected = session.status === "rejected";
@@ -97,11 +107,11 @@ function CertsTab({ toast, company, code, vertical }) {
         <button className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={reload}>새로고침</button>
       </div>
       <div className="card-desc">
-        손님이 <b>우리 {CODE_LABEL}({code || "—"})</b>로 귀속해 만든 상태 검증만 여기 쌓입니다.
-        동의 후 <b>내 상태 보내기</b>를 이어서 하면 자동으로 이 탭에 옵니다. 코드 없는 직접 전달은 카톡 링크로만 확인하세요.
+        손님이 <b>우리 {CODE_LABEL}({code || "—"})</b>로 동의를 완료하면 상태 검증이 자동으로 이 탭에 쌓입니다.
+        <b>내 상태 보기</b>에서 우리 {CODE_LABEL}로 귀속해 보낸 링크도 함께 옵니다. 코드 없는 직접 전달은 카톡 링크로만 확인하세요.
       </div>
       {loading ? <><div className="skel" /><div className="skel" /></> :
-        list.length === 0 ? <div className="empty">아직 수신된 검증이 없습니다. 손님이 동의 후 내 상태 보내기로 링크를 만들면 여기에 표시됩니다.</div> :
+        list.length === 0 ? <div className="empty">아직 수신된 검증이 없습니다. 손님이 동의를 완료하면 여기에 표시됩니다.</div> :
           list.map((c) => (
             <div key={c.id} style={{ borderBottom: "1px solid #eef2f6" }}>
               <div className="risk-row" style={{ borderBottom: "none" }}>
@@ -154,7 +164,7 @@ function SendTab({ toast, company, code, vertical }) {
       <div className="card code-card">
         <div className="card-title">손님에게 안내 보내기 · {V.label}</div>
         <div className="card-desc">
-          링크를 보내면 손님이 <b>이번 거래에 동의</b>합니다. 이어서 손님이 <b>내 상태 보내기</b>하면 동의 목록·검증 수신에 쌓입니다.
+          링크를 보내면 손님이 <b>동의 및 내 상태 보내기</b>를 진행합니다. 동의가 완료되면 동의 목록·검증 수신에 함께 쌓입니다.
         </div>
         <button className="btn btn-primary btn-block" onClick={() => copyText(`${location.origin}/consent?code=${code}`)}>
           <Icon name="send" /> 동의 안내 링크 복사
@@ -260,13 +270,15 @@ function RegisterTab({ toast, company, vertical = DEFAULT_VERTICAL }) {
   async function submit(e) {
     e.preventDefault();
     if (!name.trim() || birth.replace(/\D/g, "").length < 6) { toast("이름·생년월일을 확인해 주세요.", "danger"); return; }
-    if (!evidence) { toast("증빙 파일을 첨부해 주세요.", "danger"); return; }
     const f = e.target;
+    const reason = f.reason.value.trim();
+    if (!reason) { toast("등록 사유를 입력해 주세요.", "danger"); return; }
     setBusy(true);
     try {
       await addRisk({
         name: name.trim(), birth, type: f.type.value, company, vertical,
-        license: f.license.value.trim(), phone: f.phone.value.trim(), reason: f.reason.value.trim(), evidence,
+        license: f.license.value.trim(), phone: f.phone.value.trim(), reason,
+        evidence: evidence || "(증빙 메모 없음 · 시연)",
       });
       f.reset(); setName(""); setBirth(""); setEvidence("");
       toast(`${VIOLATION_LABEL} 내역이 등록되었습니다.`, "safe");
@@ -277,7 +289,7 @@ function RegisterTab({ toast, company, vertical = DEFAULT_VERTICAL }) {
   return (
     <div className="card">
       <div className="card-title">{VIOLATION_LABEL} 등록</div>
-      <div className="card-desc">중대한 계약 위반이 발생한 경우에만, <b>동의받은 손님에 한해 객관적 증빙을 첨부하여</b> 등록합니다. 등록처는 로그인 회원({company})으로 자동 기록됩니다.</div>
+      <div className="card-desc">중대한 계약 위반이 발생한 경우에만, <b>동의받은 손님에 한해</b> 등록합니다. 등록처는 로그인 회원({company})으로 자동 기록됩니다.</div>
       <form onSubmit={submit}>
         <div className="grid">
           {completed.length > 0 && (
@@ -297,11 +309,8 @@ function RegisterTab({ toast, company, vertical = DEFAULT_VERTICAL }) {
           <div className="field full"><label>등록 사유 <span className="req">*</span></label>
             <textarea name="reason" rows={3} required placeholder="계약·이용 조건 미이행 경위 (객관적 사실 위주)" /></div>
           <div className="field full">
-            <label>증빙 첨부 <span className="req">*</span> <span className="opt">내용증명·미납·요청 내역 등</span></label>
-            <label className="btn btn-block" style={{ cursor: "pointer" }}>
-              <Icon name="file" /> {evidence || "증빙 파일 선택"}
-              <input type="file" style={{ display: "none" }} onChange={(e) => setEvidence(e.target.files?.[0]?.name || "")} />
-            </label>
+            <label>증빙 메모 <span className="opt">시연 — 보관 중인 증빙 요약</span></label>
+            <textarea value={evidence} onChange={(e) => setEvidence(e.target.value)} rows={2} placeholder="예: 내용증명·미납내역 PDF 보관 중" />
           </div>
         </div>
         <div className="actions"><button className="btn btn-primary btn-block" type="submit" disabled={busy}>{busy ? "등록 중…" : `＋ ${VIOLATION_LABEL} 등록`}</button></div>

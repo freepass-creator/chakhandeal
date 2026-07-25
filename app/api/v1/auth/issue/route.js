@@ -4,10 +4,11 @@ import { mockFindMemberByEmail } from "@/lib/server/mockStore";
 
 export const runtime = "nodejs";
 
-const MOCK_PW = { "dudguq@gmail.com": "1234", "test@test.com": "test1234" };
+const MOCK_PW = { "dudguq@gmail.com": "1234", "test@test.com": "test1234", "pet@test.com": "test1234" };
 const BUILTIN = {
   "dudguq@gmail.com": { company: "착한거래 관리자", role: "admin", code: "", status: "approved" },
   "test@test.com": { company: "테스트렌탈", role: "member", code: "1001", status: "approved", vertical: "rent" },
+  "pet@test.com": { company: "해피펫분양", role: "member", code: "2001", status: "approved", vertical: "pet" },
 };
 
 function demoLoginAllowed() {

@@ -29,7 +29,7 @@ export async function POST(req) {
     const draft = await buildCertificateDraft({
       name,
       birth,
-      vertical: body.vertical || "pet",
+      vertical: body.vertical || "rent",
       method: body.method || "",
     });
     const { _internalTypes, ...publicDraft } = draft;

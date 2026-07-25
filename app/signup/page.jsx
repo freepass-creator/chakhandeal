@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signup } from "@/lib/auth";
-import { VERTICALS, DEFAULT_VERTICAL } from "@/lib/constants";
+import { VERTICALS, DEFAULT_VERTICAL, PRIMARY_VERTICALS } from "@/lib/constants";
 import Icon from "@/components/Icon";
 import FlowHeader from "@/components/FlowHeader";
 import StepFooter from "@/components/StepFooter";
@@ -111,10 +111,11 @@ export default function SignupPage() {
               const meta = VERTICALS[v];
               if (meta && !service.trim()) setService(meta.label);
             }}>
-              {Object.values(VERTICALS).map((v) => (
-                <option key={v.id} value={v.id}>{v.label} ({v.brandEn})</option>
+              {Object.values(VERTICALS).filter((v) => PRIMARY_VERTICALS.includes(v.id)).map((v) => (
+                <option key={v.id} value={v.id}>{v.label}</option>
               ))}
             </select>
+            <div className="hint" style={{ marginTop: 6 }}>시연 가능 업종: 렌탈 · 반려·분양</div>
           </div>
           <div className="field"><label>업종(서비스) <span className="req">*</span> <span className="opt">손님 화면에 표시됩니다</span></label>
             <input value={service} onChange={(e) => setService(e.target.value)} placeholder="예: 렌탈" list="svc-list" />

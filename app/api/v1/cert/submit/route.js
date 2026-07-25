@@ -4,18 +4,13 @@ import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 import { cleanBirth } from "@/lib/format";
 import { getAdmin } from "@/lib/server/admin";
 import { mockFindMemberByCode } from "@/lib/server/mockStore";
+import { DEMO_MEMBERS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
-const DEMO = [
-  { code: "1001", company: "테스트렌탈", service: "렌탈", vertical: "rent" },
-  { code: "2001", company: "해피펫분양", service: "반려 분양", vertical: "pet" },
-  { code: "2002", company: "따뜻한구조", service: "구조·입양", vertical: "pet" },
-];
-
 async function resolveProvider(code) {
   const c = (code || "").trim();
-  const d = DEMO.find((x) => x.code === c);
+  const d = DEMO_MEMBERS.find((x) => x.code === c);
   if (d) return d;
   const m = mockFindMemberByCode(c);
   if (m) return { code: c, company: m.company, service: m.service || "", vertical: m.vertical };
@@ -59,7 +54,7 @@ export async function POST(req) {
     const draft = await buildCertificateDraft({
       name,
       birth,
-      vertical: body.vertical || provider.vertical || "pet",
+      vertical: body.vertical || provider.vertical || "rent",
       method: body.method || "",
     });
     const result = await submitCertificate({

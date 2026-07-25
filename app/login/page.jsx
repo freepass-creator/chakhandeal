@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login, logout } from "@/lib/auth";
 import { DEMO_MODE } from "@/lib/constants";
-import { DEMO_LOGIN } from "@/lib/demo";
+import { DEMO_LOGINS } from "@/lib/demo";
 import FlowHeader from "@/components/FlowHeader";
 import StepFooter from "@/components/StepFooter";
 
@@ -31,27 +31,27 @@ export default function LoginPage() {
       <div className="c-body c-center">
         {DEMO_MODE && (
           <>
-            <div className="demo-hint">시연용 회원 — {DEMO_LOGIN.email} / {DEMO_LOGIN.password}</div>
+            <div className="demo-hint">시연용 회원 — 누르면 바로 로그인됩니다.</div>
             <div className="demo-chips">
-              <button type="button" className="demo-chip safe" onClick={() => { setEmail(DEMO_LOGIN.email); setPw(DEMO_LOGIN.password); }}>
-                샘플 계정 채우기
-              </button>
-              <button
-                type="button"
-                className="demo-chip"
-                onClick={async () => {
-                  setEmail(DEMO_LOGIN.email);
-                  setPw(DEMO_LOGIN.password);
-                  setErr("");
-                  setBusy(true);
-                  const s = await login(DEMO_LOGIN.email, DEMO_LOGIN.password);
-                  setBusy(false);
-                  if (!s) { setErr("로그인에 실패했습니다."); return; }
-                  router.replace("/console");
-                }}
-              >
-                바로 로그인
-              </button>
+              {DEMO_LOGINS.map((d) => (
+                <button
+                  key={d.email}
+                  type="button"
+                  className="demo-chip safe"
+                  onClick={async () => {
+                    setEmail(d.email);
+                    setPw(d.password);
+                    setErr("");
+                    setBusy(true);
+                    const s = await login(d.email, d.password);
+                    setBusy(false);
+                    if (!s) { setErr("로그인에 실패했습니다."); return; }
+                    router.replace("/console");
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
             </div>
           </>
         )}

@@ -2,16 +2,9 @@ import { NextResponse } from "next/server";
 import { getAdmin } from "@/lib/server/admin";
 import { mockFindMemberByCode } from "@/lib/server/mockStore";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
+import { DEMO_MEMBERS } from "@/lib/constants";
 
 export const runtime = "nodejs";
-
-const DEMO_MEMBERS = [
-  { code: "1001", company: "테스트렌탈", service: "렌탈", vertical: "rent" },
-  { code: "1002", company: "스피드렌탈", service: "렌탈", vertical: "rent" },
-  { code: "1003", company: "하나모빌리티", service: "렌탈", vertical: "rent" },
-  { code: "2001", company: "해피펫분양", service: "반려 분양", vertical: "pet" },
-  { code: "2002", company: "따뜻한구조", service: "구조·입양", vertical: "pet" },
-];
 
 /** GET /api/v1/member/by-code?code=1001 */
 export async function GET(req) {

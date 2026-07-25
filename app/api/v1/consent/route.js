@@ -7,7 +7,7 @@ export const maxDuration = 60;
 
 /**
  * POST /api/v1/consent
- * body: { name, phone, company, code, verified, signed, photos|idImage|faceImage }
+ * body: { name, phone, company, code, vertical?, verified, signed, photos|idImage|faceImage }
  */
 export async function POST(req) {
   const ip = clientIp(req);
@@ -29,7 +29,7 @@ export async function POST(req) {
 
   try {
     const result = await completeConsent(body, ip);
-    return NextResponse.json({ ok: true, id: result.id, cert: result.cert });
+    return NextResponse.json({ ok: true, id: result.id, cert: result.cert, certId: result.certId || "" });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ ok: false, error: e?.message || "동의 저장 실패" }, { status: 500 });

@@ -32,7 +32,7 @@ export async function POST(req) {
   if (!email || !pw || !company) {
     return NextResponse.json({ ok: false, error: "회사명·이메일·비밀번호 필요" }, { status: 400 });
   }
-  if (mockFindMemberByEmail(email) || email === "dudguq@gmail.com" || email === "test@test.com") {
+  if (mockFindMemberByEmail(email) || email === "dudguq@gmail.com" || email === "test@test.com" || email === "pet@test.com") {
     return NextResponse.json({ ok: false, error: "이미 가입된 이메일입니다." }, { status: 409 });
   }
   if (!body.bizImage || !body.ceoIdImage) {
