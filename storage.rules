@@ -1,5 +1,5 @@
 rules_version = '2';
-// RentSafe Pro Storage
+// 착한딜(chakhandeal) Storage
 //  - members/{uid}/** : 회원 본인 쓰기, 인증 사용자 읽기
 //  - consent_photos/** : 서버(Admin SDK) 업로드 전제 → 클라이언트 직접 write 금지
 service firebase.storage {

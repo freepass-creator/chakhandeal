@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    service: "rentsafe-pro",
+    service: "chakhandeal",
     admin: adminReady(),
     time: new Date().toISOString(),
   });
