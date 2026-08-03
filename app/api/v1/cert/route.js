@@ -24,10 +24,10 @@ export async function GET(req) {
     }
     const {
       subjectBirth, subjectPhone, subjectName, subjectUserId, ownerCompanyId, matchKey,
-      piiRef, phone_lookup_token, ...safe
+      piiRef, phone_lookup_token, company_user_token, ...safe
     } = cert;
     void subjectName; void subjectUserId; void ownerCompanyId; void matchKey;
-    void subjectBirth; void subjectPhone; void piiRef; void phone_lookup_token;
+    void subjectBirth; void subjectPhone; void piiRef; void phone_lookup_token; void company_user_token;
     return NextResponse.json({
       ok: true,
       cert: {

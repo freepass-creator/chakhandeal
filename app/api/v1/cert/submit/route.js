@@ -84,7 +84,14 @@ export async function POST(req) {
       },
       signed: !!body.signed,
     });
-    return NextResponse.json({ ok: true, id: result.id, cert: result.cert });
+    // 응답에서 내부 상관식별자·vault참조 제거(제출자 본인 응답이지만 방어적 최소화 — 타 경로와 일관).
+    const {
+      subjectName, subjectBirth, subjectPhone, subjectUserId, ownerCompanyId,
+      matchKey: _mk, piiRef, phone_lookup_token, company_user_token, ...safeCert
+    } = result.cert || {};
+    void subjectName; void subjectBirth; void subjectPhone; void subjectUserId; void ownerCompanyId;
+    void _mk; void piiRef; void phone_lookup_token; void company_user_token;
+    return NextResponse.json({ ok: true, id: result.id, cert: safeCert });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ ok: false, error: e?.message || "제출 실패" }, { status: e?.status || 500 });

@@ -95,6 +95,7 @@ async function migrateRisks() {
     if (d.reason) fields.reason = d.reason;
     if (!Object.keys(fields).length) continue;
     const piiRef = await upsertVault(matchKey, d.subjectUserId || "", fields);
+    if (!piiRef) { console.warn(`risk ${doc.id}: vault 저장 실패(matchKey 없음) — 평문 유지, 건너뜀`); continue; }
     const patch = {
       piiRef,
       phone_lookup_token: d.phone_lookup_token || phoneLookupToken(d.phone || ""),
@@ -120,12 +121,14 @@ async function migrateConsents() {
   let n = 0;
   for (const doc of snap.docs) {
     const d = doc.data();
-    if (d.piiRef && !d.name && !d.verified?.name) continue;
+    if (d.piiRef && !hasPlainPii(d)) continue;
     const fields = {};
     if (d.name) fields.name = d.name;
     if (d.verified?.birth || d.birth) fields.birth = d.verified?.birth || d.birth;
     if (d.phone) fields.phone = d.phone;
+    if (!Object.keys(fields).length) continue;
     const piiRef = await upsertVault(d.matchKey || "", d.subjectUserId || "", fields);
+    if (!piiRef) { console.warn(`consent ${doc.id}: vault 저장 실패(matchKey 없음) — 평문 유지, 건너뜀`); continue; }
     await doc.ref.update({
       piiRef,
       phone_lookup_token: d.phone_lookup_token || phoneLookupToken(d.phone || ""),
@@ -136,7 +139,9 @@ async function migrateConsents() {
       ),
       photosRef: d.photosRef || { id: d.photos?.id || "", face: d.photos?.face || "" },
       name: admin.firestore.FieldValue.delete(),
+      birth: admin.firestore.FieldValue.delete(),
       phone: admin.firestore.FieldValue.delete(),
+      reason: admin.firestore.FieldValue.delete(),
       photos: admin.firestore.FieldValue.delete(),
       verified: {
         method: d.verified?.method || "unknown",
@@ -163,6 +168,7 @@ async function migrateCerts() {
     if (phone) fields.phone = phone;
     if (!Object.keys(fields).length) continue;
     const piiRef = await upsertVault(d.matchKey || "", d.subjectUserId || "", fields);
+    if (!piiRef) { console.warn(`cert ${doc.id}: vault 저장 실패(matchKey 없음) — 평문 유지, 건너뜀`); continue; }
     await doc.ref.update({
       piiRef,
       phone_lookup_token: d.phone_lookup_token || phoneLookupToken(phone),

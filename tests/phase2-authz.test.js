@@ -196,7 +196,9 @@ describe("§14 ⑤ 주입 스푸핑 무효", () => {
     }));
     const sj = await sub.json();
     expect(sj.ok).toBe(true);
-    expect(sj.cert.subjectUserId).toBe(verified.userId);
-    expect(sj.cert.subjectUserId).not.toBe("injected-uid");
+    // subjectUserId는 응답에서 제거됨(상관ID 미노출) — 저장된 레코드로 검증(토큰값 사용, 주입 무시).
+    const storedCert = globalThis.__rsProStore.certs[0];
+    expect(storedCert.subjectUserId).toBe(verified.userId);
+    expect(storedCert.subjectUserId).not.toBe("injected-uid");
   });
 });
