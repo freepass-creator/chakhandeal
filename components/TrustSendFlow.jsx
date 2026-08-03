@@ -110,6 +110,8 @@ export default function TrustSendFlow() {
           vertical,
           providerCode: provider?.code || "",
           signed: true,
+          subjectUserId: verified.userId || "",
+          identityToken: verified.identityToken || "",
         }),
       });
       const j = await r.json();

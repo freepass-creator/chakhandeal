@@ -134,10 +134,12 @@ export default function SelfConsentPage() {
         company: target.company,
         code: target.code,
         vertical: target.vertical || "",
-        verified: { name: verified.name, birth: verified.birth, method: verified.method },
+        verified: { name: verified.name, birth: verified.birth, method: verified.method, userId: verified.userId },
         signed: !!(sig || DEMO_MODE),
         idImage: verified.idImage || "",
         faceImage: verified.faceImage || "",
+        identityToken: verified.identityToken || "",
+        subjectUserId: verified.userId || "",
       });
       const cert = res.cert || { unresolved: false, count: 0, types: [] };
       const id = res.id || "-";

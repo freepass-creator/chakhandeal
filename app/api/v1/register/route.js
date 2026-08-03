@@ -63,6 +63,8 @@ export async function POST(req) {
         phone: body.phone || "",
         reason: body.reason || "",
         evidence: body.evidence,
+        ownerCompanyId: actor.companyId || "",
+        subjectUserId: body.subjectUserId || "",
       },
       actor.email || company
     );

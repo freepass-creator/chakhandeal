@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { resolveActor, requireActor } from "@/lib/server/session";
 import { getAdmin } from "@/lib/server/admin";
 import {
@@ -60,13 +61,24 @@ export async function POST(req) {
     if (body.action === "approve") {
       const code = genCode();
       if (ready) {
-        await db.collection("members").doc(id).update({ status: "approved", code, approvedAt: new Date() });
-      } else {
-        const m = mockApproveMember(id, code);
-        if (!m) return NextResponse.json({ ok: false, error: "회원 없음" }, { status: 404 });
+        const snap = await db.collection("members").doc(id).get();
+        if (!snap.exists) return NextResponse.json({ ok: false, error: "회원 없음" }, { status: 404 });
+        const existing = snap.data()?.companyId;
+        const companyId = existing || randomUUID();
+        await db.collection("members").doc(id).update({
+          status: "approved",
+          code,
+          companyId,
+          approvedAt: new Date(),
+        });
+        await writeAudit({ action: "member_approve", actor: actor.email, meta: { id, code, companyId } });
+        return NextResponse.json({ ok: true, code, companyId });
       }
-      await writeAudit({ action: "member_approve", actor: actor.email, meta: { id, code } });
-      return NextResponse.json({ ok: true, code });
+      const companyId = randomUUID();
+      const m = mockApproveMember(id, code, companyId);
+      if (!m) return NextResponse.json({ ok: false, error: "회원 없음" }, { status: 404 });
+      await writeAudit({ action: "member_approve", actor: actor.email, meta: { id, code, companyId: m.companyId } });
+      return NextResponse.json({ ok: true, code, companyId: m.companyId });
     }
 
     if (ready) {

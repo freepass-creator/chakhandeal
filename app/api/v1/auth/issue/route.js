@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { DEMO_MODE } from "@/lib/constants";
 import { issueDemoToken } from "@/lib/server/session";
 import { mockFindMemberByEmail } from "@/lib/server/mockStore";
+import { CID_TEST_RENT, CID_PET } from "@/lib/server/ids";
 
 export const runtime = "nodejs";
 
 const MOCK_PW = { "dudguq@gmail.com": "1234", "test@test.com": "test1234", "pet@test.com": "test1234" };
 const BUILTIN = {
   "dudguq@gmail.com": { company: "착한거래 관리자", role: "admin", code: "", status: "approved" },
-  "test@test.com": { company: "테스트렌탈", role: "member", code: "1001", status: "approved", vertical: "rent" },
-  "pet@test.com": { company: "해피펫분양", role: "member", code: "2001", status: "approved", vertical: "pet" },
+  "test@test.com": { company: "테스트렌탈", role: "member", code: "1001", status: "approved", vertical: "rent", companyId: CID_TEST_RENT },
+  "pet@test.com": { company: "해피펫분양", role: "member", code: "2001", status: "approved", vertical: "pet", companyId: CID_PET },
 };
 
 function demoLoginAllowed() {
@@ -53,6 +54,7 @@ export async function POST(req) {
       code: m.code || "",
       status: m.status,
       vertical: m.vertical || "rent",
+      companyId: m.companyId || "",
     };
     return NextResponse.json({ ok: true, token: issueDemoToken(session), session });
   }

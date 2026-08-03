@@ -119,6 +119,8 @@ export default function VerticalLinkFlow({ verticalId }) {
           vertical: V.id,
           providerCode: provider.code,
           signed: true,
+          subjectUserId: verified.userId || "",
+          identityToken: verified.identityToken || "",
         }),
       });
       const j = await r.json();

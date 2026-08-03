@@ -83,7 +83,29 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
 
   function complete(payload) {
     setStage("done");
-    window.setTimeout(() => onVerified(payload), 350);
+    window.setTimeout(() => { void finishVerified(payload); }, 50);
+  }
+
+  async function finishVerified(payload) {
+    let next = { ...payload };
+    try {
+      const r = await fetch("/api/v1/idv/issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: payload.name,
+          birth: payload.birth,
+          phone: payload.phone,
+          method: payload.method,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.ok && j.token) {
+        try { sessionStorage.setItem("rs_idv_token", j.token); } catch { /* ignore */ }
+        next = { ...next, identityToken: j.token, userId: j.userId };
+      }
+    } catch { /* Phase 1: 발급 실패해도 데모 진행 */ }
+    onVerified(next);
   }
 
   function passPhoneFlow() {

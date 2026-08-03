@@ -39,6 +39,7 @@ export async function GET(req) {
     const list = await listCertificatesForProvider({
       company: actor.company,
       code: actor.code,
+      companyId: actor.companyId || "",
     });
     // 검증 수신 목록 — 생년월일·전화 원문은 응답에서 제외(화면은 마스킹만 표시). 스펙 §5·§8 원문 최소 노출.
     const safeList = list.map(({ subjectBirth, subjectPhone, ...rest }) => {

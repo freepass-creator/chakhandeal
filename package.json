@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "backfill:ids": "node scripts/backfill-ids.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",

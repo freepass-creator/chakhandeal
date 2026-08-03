@@ -5,6 +5,7 @@ import { cleanBirth } from "@/lib/format";
 import { getAdmin } from "@/lib/server/admin";
 import { mockFindMemberByCode } from "@/lib/server/mockStore";
 import { DEMO_MEMBERS, DEMO_MODE } from "@/lib/constants";
+import { verifyIdentityToken } from "@/lib/server/identityToken";
 
 export const runtime = "nodejs";
 
@@ -13,13 +14,22 @@ async function resolveProvider(code) {
   const d = DEMO_MEMBERS.find((x) => x.code === c);
   if (d) return d;
   const m = mockFindMemberByCode(c);
-  if (m) return { code: c, company: m.company, service: m.service || "", vertical: m.vertical };
+  if (m) return { code: c, company: m.company, service: m.service || "", vertical: m.vertical, companyId: m.companyId || "" };
   const { ready, db } = getAdmin();
   if (!ready) return null;
   const snap = await db.collection("members").where("code", "==", c).where("status", "==", "approved").limit(1).get();
   if (snap.empty) return null;
   const data = snap.docs[0].data();
-  return { code: c, company: data.company, service: data.service || "", vertical: data.vertical };
+  return { code: c, company: data.company, service: data.service || "", vertical: data.vertical, companyId: data.companyId || "" };
+}
+
+function resolveSubjectUserId(body) {
+  if (body.subjectUserId || body.userId) return body.subjectUserId || body.userId;
+  if (body.identityToken) {
+    const v = verifyIdentityToken(body.identityToken);
+    if (v?.userId) return v.userId;
+  }
+  return "";
 }
 
 /**
@@ -66,7 +76,13 @@ export async function POST(req) {
     const result = await submitCertificate({
       draft,
       provider,
-      subject: { name, birth, phone: body.phone || "", method: body.method || "" },
+      subject: {
+        name,
+        birth,
+        phone: body.phone || "",
+        method: body.method || "",
+        userId: resolveSubjectUserId(body),
+      },
       signed: !!body.signed,
     });
     return NextResponse.json({ ok: true, id: result.id, cert: result.cert });
