@@ -1,5 +1,5 @@
 /* ============================================================
-   착한딜 Design System — SSOT: docs/UIUX-SSOT.md (S01–S30)
+   착한거래 Design System — SSOT: docs/UIUX-SSOT.md (S01–S30)
    ============================================================ */
 :root{
   --navy:#16314d;--navy2:#1f4263;--navy50:#eef3f8;
@@ -336,7 +336,7 @@ a{color:inherit;text-decoration:none}
 .auth-links{text-align:center;margin-top:14px;font-size:13px}
 .auth-links a{color:var(--ink3);font-weight:600}
 
-/* ---- 랜딩 (착한딜 메인) ---- */
+/* ---- 랜딩 (착한거래 메인) ---- */
 .land{flex:1;min-height:0;display:flex;flex-direction:column;padding:24px 20px calc(24px + var(--sab));width:100%;max-width:none;margin:0;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch;position:relative}
 .land-main{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center}
 .land-hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:30px}

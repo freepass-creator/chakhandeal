@@ -81,7 +81,7 @@ export default function Admin() {
   if (session === undefined) return null;
   if (session === null) return (
     <div className="app">
-      <FlowHeader title="관리자 로그인" sub="착한딜 관리자 전용" />
+      <FlowHeader title="관리자 로그인" sub="착한거래 관리자 전용" />
       <div className="c-body c-center">
         <div className="admin-lock">
           <span className="lk"><Icon name="shield" size={30} /></span>

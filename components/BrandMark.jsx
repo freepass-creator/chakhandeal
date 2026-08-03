@@ -1,4 +1,4 @@
-// 착한딜 체크 심볼 (브랜드 마크) — 헤더/인증/랜딩 공용
+// 착한거래 체크 심볼 (브랜드 마크) — 헤더/인증/랜딩 공용
 // className 으로 컨테이너 크기·배경(그라디언트) 지정, 내부 체크는 공통.
 export default function BrandMark({ size = 18, className = "brand-mark" }) {
   return (

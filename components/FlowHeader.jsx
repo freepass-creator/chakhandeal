@@ -10,7 +10,7 @@ export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels
       <div className="c-head">
         <a href="/" className="fh-brand" style={{ display: "inline-flex", alignItems: "center", gap: 9, textDecoration: "none", color: "inherit", cursor: "pointer", marginBottom: 13 }}>
           <BrandMark size={16} className="brand-mark" />
-          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-.3px" }}><span style={{ color: "var(--safe)" }}>착한</span>딜</span>
+          <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-.3px" }}><span style={{ color: "var(--safe)" }}>착한</span>거래</span>
         </a>
         <h1>{title}</h1>
         {sub && <div className="co">{sub}</div>}

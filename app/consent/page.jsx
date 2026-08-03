@@ -71,7 +71,7 @@ export default function SelfConsentPage() {
         m = { company: base.company, code: c, service: base.service || "", vertical: base.vertical || "rent" };
       }
       if (!m) {
-        setErr(`‘${c}’ ${CODE_LABEL}의 거래 상대를 찾을 수 없습니다. 아직 착한딜 회원이 아니라면 동의를 진행할 수 없어요.`);
+        setErr(`‘${c}’ ${CODE_LABEL}의 거래 상대를 찾을 수 없습니다. 아직 착한거래 회원이 아니라면 동의를 진행할 수 없어요.`);
         return;
       }
       setTarget(m);

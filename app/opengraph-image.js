@@ -4,7 +4,7 @@ import { ImageResponse } from "next/og";
 export const runtime = "edge";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "착한딜";
+export const alt = "착한거래";
 
 export default async function OG() {
   let fonts = [];
@@ -31,7 +31,7 @@ export default async function OG() {
             <path d="M5 12.5l4.5 4.5L19 7" stroke="#ffffff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
-        <div style={{ fontSize: 96, fontWeight: 700, marginTop: 40, letterSpacing: -2 }}>착한딜</div>
+        <div style={{ fontSize: 96, fontWeight: 700, marginTop: 40, letterSpacing: -2 }}>착한거래</div>
         <div style={{ fontSize: 34, color: "#9fb6cc", marginTop: 18 }}>신뢰를 바탕으로 더 좋은 거래 문화를 만드는</div>
       </div>
     ),

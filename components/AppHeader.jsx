@@ -8,7 +8,7 @@ export default function AppHeader({ subtitle, right }) {
         <a href="/" className="brand" style={{ textDecoration: "none", color: "inherit" }}>
           <BrandMark size={18} className="brand-mark" />
           <div className="brand-tx">
-            <div className="brand-name"><span className="accent">착한</span>딜</div>
+            <div className="brand-name"><span className="accent">착한</span>거래</div>
             {subtitle && <div className="brand-sub">{subtitle}</div>}
           </div>
         </a>

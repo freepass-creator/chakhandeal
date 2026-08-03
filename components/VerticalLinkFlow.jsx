@@ -95,7 +95,7 @@ export default function VerticalLinkFlow({ verticalId }) {
     const base = V.verifyPath || "/v";
     const shareUrl = `${origin}${base}?id=${encodeURIComponent(id)}`;
     const shareText = [
-      `[착한딜] ${company} ${V.sharePurpose} 상태 링크입니다.`,
+      `[착한거래] ${company} ${V.sharePurpose} 상태 링크입니다.`,
       ``,
       shareUrl,
       ``,
@@ -146,7 +146,7 @@ export default function VerticalLinkFlow({ verticalId }) {
       try {
         await navigator.share({
           title: `${provider.company} 상태 링크`,
-          text: `[착한딜] ${provider.company} ${V.sharePurpose} 상태 링크입니다. 캡처가 아니라 링크를 열어 확인해 주세요.`,
+          text: `[착한거래] ${provider.company} ${V.sharePurpose} 상태 링크입니다. 캡처가 아니라 링크를 열어 확인해 주세요.`,
           url: issued.shareUrl,
         });
         return;
