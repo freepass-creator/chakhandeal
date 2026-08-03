@@ -32,12 +32,12 @@ export default function IntroOverlay() {
   };
 
   return (
-    <div className="intro-backdrop" role="dialog" aria-modal="true" aria-label="착한거래 안내" onClick={close}>
+    <div className="intro-backdrop" role="dialog" aria-modal="true" aria-label="착한딜 안내" onClick={close}>
       <div className="intro-sheet intro-sheet-short" onClick={(e) => e.stopPropagation()}>
         <div className="intro-scroll"><div className="intro-inner">
           <div className="intro-head">
             <BrandMark size={28} className="intro-mark" />
-            <h2 className="intro-title"><span className="accent">착한</span>거래</h2>
+            <h2 className="intro-title"><span className="accent">착한</span>딜</h2>
             <p className="intro-tagline">{CAMPAIGN_LEAD}</p>
           </div>
 

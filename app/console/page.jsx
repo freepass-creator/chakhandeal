@@ -220,7 +220,7 @@ function SendTab({ toast, company, code, vertical }) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "착한거래 동의 안내",
+          title: "착한딜 동의 안내",
           text: `${company} 거래 동의 및 내 상태 보내기 링크입니다.`,
           url: consentUrl,
         });
@@ -352,7 +352,7 @@ function SendTab({ toast, company, code, vertical }) {
         </div>
         {showTpl && (
           <>
-            <div className="card-desc"><b>계약서는 그대로 두고</b>, 기존 「개인정보 수집·이용 동의서」에 아래 <b>제3자 제공 동의 항목만 별도로</b> 추가하면 됩니다. (디지털 동의를 못 쓰는 경우 대안) <b>이 방식으로 받은 동의서는 회원이 직접 보관·관리</b>하며, 착한거래 플랫폼에는 기록되지 않습니다.</div>
+            <div className="card-desc"><b>계약서는 그대로 두고</b>, 기존 「개인정보 수집·이용 동의서」에 아래 <b>제3자 제공 동의 항목만 별도로</b> 추가하면 됩니다. (디지털 동의를 못 쓰는 경우 대안) <b>이 방식으로 받은 동의서는 회원이 직접 보관·관리</b>하며, 착한딜 플랫폼에는 기록되지 않습니다.</div>
             <div className="tpl-label">개인정보 제3자 제공 동의 항목
               <button type="button" className="btn btn-sm" onClick={() => copyText(CONTRACT_CONSENT_FORM)}><Icon name="file" /> 복사</button></div>
             <pre className="tpl">{CONTRACT_CONSENT_FORM}</pre>

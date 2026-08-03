@@ -20,7 +20,7 @@ export default function Landing() {
       <div className="land-main">
         <div className="land-hero">
           <BrandMark size={34} className="land-mark" />
-          <h1 className="land-title"><span className="accent">착한</span>거래</h1>
+          <h1 className="land-title"><span className="accent">착한</span>딜</h1>
           <p className="land-cat">약속을 믿음으로</p>
           <p className="land-lead">{CAMPAIGN_LEAD}</p>
         </div>

@@ -140,7 +140,7 @@ export default function TrustSendFlow() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "착한거래 상태 링크",
+          title: "착한딜 상태 링크",
           text: "캡처가 아니라 링크를 열어 확인해 주세요.",
           url: link.shareUrl,
         });

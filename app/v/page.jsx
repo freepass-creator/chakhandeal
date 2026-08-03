@@ -53,7 +53,7 @@ export default function VerifyLinkPage() {
         {cert && (
           <>
             <div className="slabel">링크 확인됨</div>
-            <div className="stitle">{cert.certName || "착한거래 상태"}</div>
+            <div className="stitle">{cert.certName || "착한딜 상태"}</div>
             <div className="sdesc">
               이용자가 직접 확인한 뒤 보낸 링크입니다. 화면 캡처·복사본이 아니라 <b>이 페이지의 실시간 결과</b>만 보시면 됩니다.
             </div>
