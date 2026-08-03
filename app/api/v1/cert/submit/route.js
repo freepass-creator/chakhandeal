@@ -4,7 +4,7 @@ import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 import { getAdmin } from "@/lib/server/admin";
 import { mockFindMemberByCode } from "@/lib/server/mockStore";
 import { DEMO_MEMBERS } from "@/lib/constants";
-import { requireVerifiedSubject } from "@/lib/server/authz";
+import { requireVerifiedSubject, assertSubjectMatchesIdentity } from "@/lib/server/authz";
 import { cleanBirth } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -51,6 +51,13 @@ export async function POST(req) {
   const name = String(body?.name || "").trim();
   const birth = cleanBirth(body?.birth);
   const providerCode = String(body?.providerCode || "").trim();
+
+  // 표시 이름/생년이 본인확인 토큰 신원과 일치해야 함(증명서에 임의 이름 표기 방지).
+  try {
+    await assertSubjectMatchesIdentity(subject, name, birth, { endpoint: "/api/v1/cert/submit" });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: e?.message || "신원 불일치", code: e?.code || "IDENTITY_MISMATCH" }, { status: e?.status || 403 });
+  }
 
   let provider = { code: "", company: "직접 전달", service: "", vertical: body.vertical || "rent" };
   if (providerCode) {

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 import { issueIdentityToken } from "@/lib/server/identityToken";
 import { DEMO_USER_IDS } from "@/lib/server/ids";
 import { DEMO_USERS } from "@/lib/demo";
@@ -10,16 +9,16 @@ import { auditAccessDeny } from "@/lib/server/authz";
 
 export const runtime = "nodejs";
 
-/** 데모 샘플 인물 → 시드 userId. 실 IdV 도입 시 phone_lookup_token dedup으로 교체(TODO). */
+/** 데모 샘플 인물 → 시드 userId. 비샘플이면 "" 반환(발급 거부). 실 IdV 도입 시 실인증으로 교체(TODO). */
 function resolveUserId({ name, birth }) {
   const n = String(name || "").trim();
   const b = cleanBirth(birth);
   for (const [key, u] of Object.entries(DEMO_USERS)) {
     if (u.name === n && cleanBirth(u.birth) === b) {
-      return u.userId || DEMO_USER_IDS[key] || randomUUID();
+      return u.userId || DEMO_USER_IDS[key] || "";
     }
   }
-  return randomUUID();
+  return "";
 }
 
 /**
@@ -57,6 +56,16 @@ export async function POST(req) {
   }
 
   const userId = resolveUserId({ name, birth });
+  if (!userId) {
+    // 데모 스텁은 제공된 샘플 인물만 발급한다. 임의 name+birth로 토큰을 내주면
+    // idv/issue→check 체인으로 '아무 사람이나 이력 조회'하는 존재여부 오라클이 재구성됨(I2·I3).
+    // 실 IdV 도입 시 이 분기는 실제 본인인증으로 대체된다.
+    await auditAccessDeny({ actor: ip, endpoint: "/api/v1/idv/issue", reason: "demo_non_sample_identity" });
+    return NextResponse.json(
+      { ok: false, error: "시연은 제공된 샘플 인물로만 진행할 수 있습니다.", code: "DEMO_SAMPLE_ONLY" },
+      { status: 403 },
+    );
+  }
   try {
     const token = issueIdentityToken({ userId, name, birth, phone, method });
     // 데모: userId를 응답에 실지 않음 — 존재여부 오라클·전역상관ID 누출 방지. 토큰 안에만 담김.

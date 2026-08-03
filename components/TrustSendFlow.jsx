@@ -79,11 +79,12 @@ export default function TrustSendFlow() {
     setVerified(v);
     const ok = await loadDraft(v);
     if (!ok) {
-      setDraft({
-        trustLevel: "신규",
-        notice: "이력이 없으면 신규·본인확인 완료로 표시됩니다. 불리한 의미가 아닙니다.",
-        identityVerified: true,
-      });
+      // 상태 확인 실패 시 '신규'로 단정하지 않는다 — 이력 보유자를 신규로 오표시할 수 있음.
+      // 본인확인부터 다시.
+      alert("상태 확인에 실패했습니다. 본인확인을 다시 진행해 주세요.");
+      setVerified(null);
+      setPhase("intro");
+      return;
     }
     setPhase("view");
   }
