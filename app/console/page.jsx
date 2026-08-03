@@ -6,6 +6,7 @@ import { RISK_TYPES, CONTRACT_CONSENT_FORM, CONSENT_NOTICES, STATUS_NOTICES, COD
 import { mask, fmtBirth, fmtDate } from "@/lib/format";
 import { listConsents, addRisk } from "@/lib/db";
 import { getSession, logout, authHeaders } from "@/lib/auth";
+import { tap } from "@/lib/haptic";
 import AppHeader from "@/components/AppHeader";
 import Icon from "@/components/Icon";
 import NoticeList from "@/components/NoticeList";
@@ -254,7 +255,7 @@ function SendTab({ toast, company, code, vertical }) {
             className="btn"
             style={{ flex: 1 }}
             disabled={!code}
-            onClick={copyConsentLink}
+            onClick={tap(copyConsentLink)}
           >
             <Icon name="file" /> {copiedLink ? "복사됨" : "복사"}
           </button>
@@ -263,7 +264,7 @@ function SendTab({ toast, company, code, vertical }) {
             className="btn btn-primary"
             style={{ flex: 1 }}
             disabled={!code}
-            onClick={shareConsentLink}
+            onClick={tap(shareConsentLink)}
           >
             <Icon name="send" /> 공유
           </button>

@@ -1,8 +1,7 @@
 // 단계형 화면 하단 내비게이션 — [이전] [다음] 규격 통일.
 // prev/next = { label?, onClick, disabled?, kind? } | null
 //  - 둘 다 주면 [이전][다음](다음이 넓게), 하나만 주면 전체폭 1개.
-function hap() { try { navigator.vibrate?.(8); } catch { /* noop */ } }
-const tap = (fn) => () => { hap(); fn?.(); };
+import { tap } from "@/lib/haptic";
 
 export default function StepFooter({ prev, next }) {
   if (prev && next) {

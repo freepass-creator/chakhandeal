@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { tap } from "@/lib/haptic";
 
 // 홈 화면에 앱 설치 — beforeinstallprompt(안드/데스크톱) + iOS/수동 안내 폴백
 export default function InstallButton() {
@@ -42,7 +43,7 @@ export default function InstallButton() {
 
   return (
     <>
-      <button type="button" className="install-btn" onClick={onClick}>
+      <button type="button" className="install-btn" onClick={tap(onClick)}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14" /></svg>
         앱 설치하기
       </button>

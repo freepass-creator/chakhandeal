@@ -6,6 +6,10 @@
 
 > 시연: `NEXT_PUBLIC_DEMO_MODE` 미설정(true). 상용: `NEXT_PUBLIC_DEMO_MODE=false` + `MATCH_HMAC_SECRET` 실키.
 
+### 의도적 보류 (감사 시 사고로 잡지 말 것)
+
+휴대폰 본인인증 stub·얼굴 실대조(매칭 엔진 없음)는 **의도적 보류**다 — 담당자 실연동 예정. 시연은 ID 촬영·OCR 보조·soft demo pass·link-only 상태만 유지. 상세: [`INTEGRATIONS.md`](./INTEGRATIONS.md).
+
 ---
 
 ## 전체 표

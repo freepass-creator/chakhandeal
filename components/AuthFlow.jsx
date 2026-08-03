@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { hyphenPhone, fmtBirth } from "@/lib/format";
 import { CARRIERS, DEMO_MODE } from "@/lib/constants";
+import { tap } from "@/lib/haptic";
 import { requestPhoneCode, verifyPhoneCode } from "@/lib/kyc/phoneProvider";
 import { DEMO_USERS } from "@/lib/demo";
 import StepFooter from "@/components/StepFooter";
@@ -216,12 +217,12 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
           <div className="slabel">본인확인</div>
           <div className="stitle">본인확인을 진행해 주세요</div>
           <div className="sdesc">신분증과 얼굴을 촬영하면 온라인 대면으로 본인확인이 됩니다. 권장 방식입니다.</div>
-          <button type="button" className="auth-opt rec" onClick={() => setStage("idcam")}>
+          <button type="button" className="auth-opt rec" onClick={tap(() => setStage("idcam"))}>
             <span className="ic id"><Icon name="file" size={18} /></span>
             <span className="tx">신분증으로 인증<small>신분증 촬영 + 얼굴 촬영 · 온라인 대면 · 권장</small></span>
             <span className="arr">›</span>
           </button>
-          <button type="button" className="auth-opt" onClick={() => setStage("phone")}>
+          <button type="button" className="auth-opt" onClick={tap(() => setStage("phone"))}>
             <span className="ic phone"><Icon name="phone" size={18} /></span>
             <span className="tx">휴대폰으로 인증<small>PASS·통신사 본인확인</small></span>
             <span className="arr">›</span>

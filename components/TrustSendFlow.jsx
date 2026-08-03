@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DEFAULT_VERTICAL, CODE_LABEL } from "@/lib/constants";
 import { findMemberByCode } from "@/lib/db";
 import { fmtDateTime } from "@/lib/format";
+import { tap } from "@/lib/haptic";
 import AuthFlow, { authProgress } from "@/components/AuthFlow";
 import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
@@ -226,7 +227,7 @@ export default function TrustSendFlow() {
                   className="btn"
                   style={{ flex: 1 }}
                   disabled={busy || !draft}
-                  onClick={copyShare}
+                  onClick={tap(copyShare)}
                 >
                   {busy ? "준비 중…" : copied ? "복사됨" : "복사"}
                 </button>
@@ -235,7 +236,7 @@ export default function TrustSendFlow() {
                   className="btn btn-primary"
                   style={{ flex: 1 }}
                   disabled={busy || !draft}
-                  onClick={shareNative}
+                  onClick={tap(shareNative)}
                 >
                   {busy ? "준비 중…" : "공유"}
                 </button>

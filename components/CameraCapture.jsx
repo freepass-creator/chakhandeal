@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle } from "react";
+import { tap } from "@/lib/haptic";
 
 /** PC 시연용 — 카메라 실패 후에만 쓰는 가짜 촬영본 */
 function mockShotDataUrl(facing, max) {
@@ -246,7 +247,7 @@ const CameraCapture = forwardRef(function CameraCapture({
         />
         <button
           type="button"
-          onClick={retake}
+          onClick={tap(retake)}
           style={{
             position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)",
             padding: "9px 18px", borderRadius: 999, border: "none",

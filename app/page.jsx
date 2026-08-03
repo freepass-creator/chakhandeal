@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { CAMPAIGN_LEAD } from "@/lib/constants";
+import { tap } from "@/lib/haptic";
 import Icon from "@/components/Icon";
 import BrandMark from "@/components/BrandMark";
 import InstallButton from "@/components/InstallButton";
@@ -25,7 +26,7 @@ export default function Landing() {
         </div>
 
         <div className="land-cards">
-          <button type="button" className="land-card primary" onClick={() => router.push("/consent")}>
+          <button type="button" className="land-card primary" onClick={tap(() => router.push("/consent"))}>
             <span className="lc-ic"><Icon name="check" size={22} /></span>
             <span className="lc-tx">
               <b>동의 및 내 상태 보내기</b>
@@ -34,7 +35,7 @@ export default function Landing() {
             <span className="lc-arrow">→</span>
           </button>
 
-          <button type="button" className="land-card" onClick={() => router.push("/go")}>
+          <button type="button" className="land-card" onClick={tap(() => router.push("/go"))}>
             <span className="lc-ic"><Icon name="send" size={22} /></span>
             <span className="lc-tx">
               <b>내 상태 보기</b>
@@ -46,7 +47,7 @@ export default function Landing() {
       </div>
 
       <div className="land-foot">
-        <button type="button" className="land-biz" onClick={() => router.push("/login")}>
+        <button type="button" className="land-biz" onClick={tap(() => router.push("/login"))}>
           <Icon name="user" size={15} />회원 로그인
         </button>
         <InstallButton />
