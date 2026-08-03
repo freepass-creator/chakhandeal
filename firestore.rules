@@ -1,5 +1,5 @@
 rules_version = '2';
-// RentSafe Pro — 서버(Admin SDK) 경유 전제
+// 착한딜(chakhandeal) — 서버(Admin SDK) 경유 전제
 //  - risks: 클라이언트 직접 읽기/쓰기 금지 → /api/v1/check|register
 //  - consents: 생성은 Admin API(/api/v1/consent). 회원/관리자 읽기만.
 //  - audits: Admin만
