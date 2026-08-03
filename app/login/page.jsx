@@ -15,25 +15,34 @@ export default function LoginPage() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function submit() {
+  async function doLogin(e, p) {
     setErr("");
     setBusy(true);
-    let s = await login(email, pw);
-    // 시연: 아무 입력이든 회원 콘솔로 (티 내지 않음)
-    if (!s && DEMO_MODE) {
-      const d = DEMO_LOGINS[0];
-      s = await login(d.email, d.password);
-    }
+    const s = await login(e, p);
     setBusy(false);
     if (!s) { setErr("이메일 또는 비밀번호가 올바르지 않습니다."); return; }
     if (s.role === "admin") { await logout(); setErr("관리자 계정입니다. 관리자 페이지에서 로그인해 주세요."); return; }
     router.replace("/console");
   }
+  const submit = () => doLogin(email, pw);
 
   return (
     <div className="app">
       <FlowHeader title="회원 로그인" sub="사업자 회원 전용" />
       <div className="c-body c-center">
+        {DEMO_MODE && (
+          <>
+            <div className="demo-hint">시연용 회원 — 누르면 바로 로그인됩니다.</div>
+            <div className="demo-chips">
+              {DEMO_LOGINS.map((d) => (
+                <button key={d.email} type="button" className="demo-chip safe" disabled={busy}
+                  onClick={() => { setEmail(d.email); setPw(d.password); doLogin(d.email, d.password); }}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
           <div className="field"><label>이메일</label>
             <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="name@company.com" autoComplete="username" /></div>

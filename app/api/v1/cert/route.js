@@ -19,7 +19,9 @@ export async function GET(req) {
         { status: 410 },
       );
     }
-    const { subjectBirth, subjectPhone, ...safe } = cert;
+    // subjectName 원문은 응답에서 제외 — 마스킹본(subjectNameMasked)만 노출
+    const { subjectBirth, subjectPhone, subjectName, ...safe } = cert;
+    void subjectName;
     return NextResponse.json({
       ok: true,
       cert: {
@@ -38,7 +40,12 @@ export async function GET(req) {
       company: actor.company,
       code: actor.code,
     });
-    return NextResponse.json({ ok: true, certificates: list });
+    // 검증 수신 목록 — 생년월일·전화 원문은 응답에서 제외(화면은 마스킹만 표시). 스펙 §5·§8 원문 최소 노출.
+    const safeList = list.map(({ subjectBirth, subjectPhone, ...rest }) => {
+      void subjectPhone;
+      return { ...rest, subjectBirthMasked: subjectBirth ? `${String(subjectBirth).slice(0, 2)}****` : "" };
+    });
+    return NextResponse.json({ ok: true, certificates: safeList });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e?.message || "인증 필요" }, { status: e?.status || 401 });
   }

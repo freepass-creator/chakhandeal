@@ -27,12 +27,26 @@ cloudflared tunnel --url http://localhost:3000
 
 | 키 | 값 | 용도 |
 |---|---|---|
-| `MATCH_HMAC_SECRET` | 충분히 긴 랜덤 문자열 | 이름+생년월일 HMAC 매칭키 (미설정 시 폴백+경고) |
-| `ALLOW_DEMO_LOGIN` | `1` | 데모 계정(test@/pet@) 로그인 — 운영 전환 시 제거 |
+| `SESSION_SIGNING_SECRET` | 랜덤 32바이트 hex | 세션 토큰 서명키 — **미설정+DEMO끔이면 기동 실패**. MATCH와 다른 값 |
+| `MATCH_HMAC_SECRET` | 랜덤 32바이트 hex(다른 값) | 이름+생년월일 매칭키 |
 | `GEMINI_API_KEY` | (로컬 .env.local 값) | 신분증/사업자 OCR |
+| `NEXT_PUBLIC_DEMO_MODE` | `true`(데모 배포) 또는 `false`(운영) | 아래 경고 참조 |
 
-   `ALLOW_PUBLIC_CHECK` 는 현재 손님·콘솔 동선에서 쓰지 않으므로 불필요.
+   랜덤 생성: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (두 번 돌려 서로 다른 값).
+   `ALLOW_PUBLIC_CHECK`·`ALLOW_DEMO_LOGIN` 은 현재 동선에서 불필요.
 3. Deploy → `https://chakhandeal.vercel.app` (또는 자동 도메인)
+
+### ⚠️ 배포 전 보안 게이트 (2026-08-03 전수조사 반영)
+
+- **데모 배포**(`NEXT_PUBLIC_DEMO_MODE=true` 또는 미설정): 가공 씨앗 데이터만. **실인물을 입력하지 말 것**(mock은 인스턴스별 메모리라 유실·비공유 + 무인증 조회 표면이 열림). 세션 서명키가 부팅마다 랜덤이라 토큰 위조는 차단됨.
+- **운영 배포**(`NEXT_PUBLIC_DEMO_MODE=false`): SESSION_SIGNING_SECRET·MATCH_HMAC_SECRET·FIREBASE_ADMIN_JSON 셋 다 필수(하나라도 없으면 관련 API가 기동 실패로 fail-closed). 이 모드로 실서비스를 열기 전, **아래 '운영 전 필수 하드닝'을 먼저 끝낼 것**.
+
+### 운영 전 필수 하드닝 (미완료 — 실서비스 오픈 블로커)
+
+전수조사에서 확인된, 코드 수정이 남은 항목:
+- 본인확인 세션 바인딩: `/api/v1/consent`가 실제 본인확인을 검증하도록(현재 `identityVerified:true` 하드코딩). preview·submit은 운영에서 이미 403으로 잠갔으나 consent 본선은 미완.
+- 테넌트 격리: 콘솔 스코프 키를 상호명·4자리코드 대신 불변 memberId(uid)로. 코드 발급 유니크 검사. `/api/v1/consents` 응답 필드 화이트리스트(photos·matchKey·verified.birth 제외).
+- Firestore 규칙: `members` self-create에서 role/status/code 필드 고정, 서버는 custom claim으로만 admin 판정(`session.js` 이메일 하드코딩·fail-open 기본값 제거).
 
 ### ⚠️ Vercel 시연 전 반드시 알 것 — mock 스토어는 서버리스에서 공유 안 됨
 
