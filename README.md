@@ -1,6 +1,6 @@
-# 착한딜 (chakhandeal)
+# 착한거래 (chakhandeal)
 
-구 RentSafe Pro(착한거래) — `rentsafe` 리포에서 히스토리째 이관 (2026-07-30)
+서비스명 **착한거래** · 리포/폴더명 **chakhandeal(착한딜)** — 구 RentSafe Pro, `rentsafe` 리포에서 히스토리째 이관 (2026-07-30)
 
 렌탈·가맹 회원사 대상 자기정보 증명 플랫폼의 **상용 골격** 버전.
 Next.js 14 + Firebase + 서버 API(`/api/v1/*`) + HMAC 매칭키.
