@@ -19,9 +19,10 @@ export async function GET(req) {
         { status: 410 },
       );
     }
-    // subjectName 원문은 응답에서 제외 — 마스킹본(subjectNameMasked)만 노출
-    const { subjectBirth, subjectPhone, subjectName, ...safe } = cert;
-    void subjectName;
+    // 원문 PII(실명·생년·전화)와 내부 상관식별자(전역 subjectUserId·ownerCompanyId)는 응답에서 제외.
+    // subjectUserId를 무인증 링크에 실으면 회사끼리 동일인 대조가 가능해짐(스펙 I2·I3 위반).
+    const { subjectBirth, subjectPhone, subjectName, subjectUserId, ownerCompanyId, ...safe } = cert;
+    void subjectName; void subjectUserId; void ownerCompanyId;
     return NextResponse.json({
       ok: true,
       cert: {
@@ -41,9 +42,10 @@ export async function GET(req) {
       code: actor.code,
       companyId: actor.companyId || "",
     });
-    // 검증 수신 목록 — 생년월일·전화 원문은 응답에서 제외(화면은 마스킹만 표시). 스펙 §5·§8 원문 최소 노출.
-    const safeList = list.map(({ subjectBirth, subjectPhone, ...rest }) => {
-      void subjectPhone;
+    // 검증 수신 목록 — 생년·전화 원문 + 내부 상관식별자(subjectUserId·ownerCompanyId)는 응답에서 제외.
+    // 회원사 콘솔은 이 값들을 쓰지 않으며, 전역 userId를 회사-대면 계약에 노출하면 회사간 대조가 가능(I3).
+    const safeList = list.map(({ subjectBirth, subjectPhone, subjectUserId, ownerCompanyId, ...rest }) => {
+      void subjectPhone; void subjectUserId; void ownerCompanyId;
       return { ...rest, subjectBirthMasked: subjectBirth ? `${String(subjectBirth).slice(0, 2)}****` : "" };
     });
     return NextResponse.json({ ok: true, certificates: safeList });

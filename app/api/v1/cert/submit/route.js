@@ -24,11 +24,13 @@ async function resolveProvider(code) {
 }
 
 function resolveSubjectUserId(body) {
-  if (body.subjectUserId || body.userId) return body.subjectUserId || body.userId;
+  // 본인확인 토큰을 최우선으로 신뢰(consent 경로와 통일). 토큰이 있으면 body의 userId는 무시.
+  // TODO(Phase 2): 토큰-only로 제한 — 아래 body 폴백(클라 신뢰)은 canReadTransaction 도입 시 제거.
   if (body.identityToken) {
     const v = verifyIdentityToken(body.identityToken);
     if (v?.userId) return v.userId;
   }
+  if (body.subjectUserId || body.userId) return body.subjectUserId || body.userId;
   return "";
 }
 

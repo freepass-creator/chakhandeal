@@ -5,6 +5,16 @@ import { mockListConsents } from "@/lib/server/mockStore";
 
 export const runtime = "nodejs";
 
+// 응답 최소화 — 전역 조인/상관 식별자(matchKey·subjectUserId·ownerCompanyId)는 회원사 콘솔에 싣지 않는다.
+// 회사끼리 동일인 대조 방지(스펙 I2·I3) + 향후 회사별 토큰 전환 부채 예방.
+// verified(이름·생년)는 자기 회사(isOwnerCompany)의 동의 레코드라 유지 — 위반등록 프리필에 사용.
+// TODO(Phase 5/6): verified.phone 등 최소화·마스킹 재검토.
+function publicConsent(c) {
+  const { matchKey, subjectUserId, ownerCompanyId, ...rest } = c;
+  void matchKey; void subjectUserId; void ownerCompanyId;
+  return rest;
+}
+
 /** GET /api/v1/consents — 로그인 회원사 스코프 (admin은 ?company= 또는 전체) */
 export async function GET(req) {
   try {
@@ -61,7 +71,7 @@ export async function GET(req) {
     } else {
       consents = mockListConsents(company || undefined, companyId || undefined);
     }
-    return NextResponse.json({ ok: true, consents });
+    return NextResponse.json({ ok: true, consents: consents.map(publicConsent) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e?.message || "실패" }, { status: e?.status || 500 });
   }
