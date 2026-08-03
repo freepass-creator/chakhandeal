@@ -57,8 +57,7 @@ export default function TrustSendFlow() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: v.name,
-          birth: v.birth,
+          identityToken: v.identityToken,
           vertical,
           method: v.method,
         }),
@@ -110,7 +109,6 @@ export default function TrustSendFlow() {
           vertical,
           providerCode: provider?.code || "",
           signed: true,
-          subjectUserId: verified.userId || "",
           identityToken: verified.identityToken || "",
         }),
       });

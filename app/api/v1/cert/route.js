@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { getCertificate, listCertificatesForProvider } from "@/lib/server/certificate";
 import { resolveActor, requireActor } from "@/lib/server/session";
+import { canReadTransaction, auditAccessDeny } from "@/lib/server/authz";
+import { clientIp } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 
 /**
- * GET /api/v1/cert?id=…  — 검증 링크 (카톡·문자, 비로그인 가능 · 만료 강제)
- * GET /api/v1/cert        — 로그인 회원사: 코드/상호로 귀속된 검증 수신 목록
+ * GET /api/v1/cert?id=…  — 검증 링크 (카톡·문자, 비로그인 가능 · 만료 강제) — Phase 4까지 grant 전 현행 유지
+ * GET /api/v1/cert        — 로그인 회원사: companyId 스코프 + canRead 최종확인
  */
 export async function GET(req) {
   const id = req.nextUrl.searchParams.get("id");
   if (id) {
-    const cert = await getCertificate(id);
+    const cert = await getCertificate(id, { auditView: true, actor: clientIp(req) });
     if (!cert) return NextResponse.json({ ok: false, error: "없음" }, { status: 404 });
     if (cert.expired) {
       return NextResponse.json(
@@ -19,10 +21,8 @@ export async function GET(req) {
         { status: 410 },
       );
     }
-    // 원문 PII(실명·생년·전화)와 내부 상관식별자(전역 subjectUserId·ownerCompanyId)는 응답에서 제외.
-    // subjectUserId를 무인증 링크에 실으면 회사끼리 동일인 대조가 가능해짐(스펙 I2·I3 위반).
-    const { subjectBirth, subjectPhone, subjectName, subjectUserId, ownerCompanyId, ...safe } = cert;
-    void subjectName; void subjectUserId; void ownerCompanyId;
+    const { subjectBirth, subjectPhone, subjectName, subjectUserId, ownerCompanyId, matchKey, ...safe } = cert;
+    void subjectName; void subjectUserId; void ownerCompanyId; void matchKey;
     return NextResponse.json({
       ok: true,
       cert: {
@@ -42,14 +42,21 @@ export async function GET(req) {
       code: actor.code,
       companyId: actor.companyId || "",
     });
-    // 검증 수신 목록 — 생년·전화 원문 + 내부 상관식별자(subjectUserId·ownerCompanyId)는 응답에서 제외.
-    // 회원사 콘솔은 이 값들을 쓰지 않으며, 전역 userId를 회사-대면 계약에 노출하면 회사간 대조가 가능(I3).
-    const safeList = list.map(({ subjectBirth, subjectPhone, subjectUserId, ownerCompanyId, ...rest }) => {
-      void subjectPhone; void subjectUserId; void ownerCompanyId;
+    // companyId 스코프 후 canRead로 최종 필터(타사·스푸핑 방어)
+    const scoped = list.filter((c) => canReadTransaction(actor, c));
+    const safeList = scoped.map(({ subjectBirth, subjectPhone, subjectUserId, ownerCompanyId, matchKey, ...rest }) => {
+      void subjectPhone; void subjectUserId; void ownerCompanyId; void matchKey;
       return { ...rest, subjectBirthMasked: subjectBirth ? `${String(subjectBirth).slice(0, 2)}****` : "" };
     });
     return NextResponse.json({ ok: true, certificates: safeList });
   } catch (e) {
+    if (e?.denyReason || e?.status === 401 || e?.status === 403) {
+      await auditAccessDeny({
+        actor: "anonymous",
+        endpoint: "/api/v1/cert",
+        reason: e.denyReason || "actor_denied",
+      });
+    }
     return NextResponse.json({ ok: false, error: e?.message || "인증 필요" }, { status: e?.status || 401 });
   }
 }

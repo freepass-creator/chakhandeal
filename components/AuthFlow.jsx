@@ -102,7 +102,7 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
       const j = await r.json().catch(() => ({}));
       if (j.ok && j.token) {
         try { sessionStorage.setItem("rs_idv_token", j.token); } catch { /* ignore */ }
-        next = { ...next, identityToken: j.token, userId: j.userId };
+        next = { ...next, identityToken: j.token };
       }
     } catch { /* Phase 1: 발급 실패해도 데모 진행 */ }
     onVerified(next);

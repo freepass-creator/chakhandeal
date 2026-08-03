@@ -63,8 +63,8 @@ export async function POST(req) {
         phone: body.phone || "",
         reason: body.reason || "",
         evidence: body.evidence,
-        ownerCompanyId: actor.companyId || "",
-        subjectUserId: body.subjectUserId || "",
+        ownerCompanyId: actor.companyId || "", // body.companyId 주입 무시
+        subjectUserId: "", // body.subjectUserId 주입 무시 — 본인확인 토큰 경로에서만 부여
       },
       actor.email || company
     );

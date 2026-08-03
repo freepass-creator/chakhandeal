@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { buildCertificateDraft, submitCertificate } from "@/lib/server/certificate";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
-import { cleanBirth } from "@/lib/format";
 import { getAdmin } from "@/lib/server/admin";
 import { mockFindMemberByCode } from "@/lib/server/mockStore";
-import { DEMO_MEMBERS, DEMO_MODE } from "@/lib/constants";
-import { verifyIdentityToken } from "@/lib/server/identityToken";
+import { DEMO_MEMBERS } from "@/lib/constants";
+import { requireVerifiedSubject } from "@/lib/server/authz";
+import { cleanBirth } from "@/lib/format";
 
 export const runtime = "nodejs";
 
@@ -23,28 +23,12 @@ async function resolveProvider(code) {
   return { code: c, company: data.company, service: data.service || "", vertical: data.vertical, companyId: data.companyId || "" };
 }
 
-function resolveSubjectUserId(body) {
-  // 본인확인 토큰을 최우선으로 신뢰(consent 경로와 통일). 토큰이 있으면 body의 userId는 무시.
-  // TODO(Phase 2): 토큰-only로 제한 — 아래 body 폴백(클라 신뢰)은 canReadTransaction 도입 시 제거.
-  if (body.identityToken) {
-    const v = verifyIdentityToken(body.identityToken);
-    if (v?.userId) return v.userId;
-  }
-  if (body.subjectUserId || body.userId) return body.subjectUserId || body.userId;
-  return "";
-}
-
 /**
- * POST /api/v1/cert/submit
- * body: { name, birth, phone?, method?, vertical, providerCode, signed? }
+ * POST /api/v1/cert/submit — 토큰-only.
+ * subject 신원은 오직 본인확인 토큰. body.subjectUserId/userId 폴백 삭제.
+ * name/phone은 표시용 저장만(조회키로 쓰지 않음).
  */
 export async function POST(req) {
-  // 무인증으로 '본인확인 완료' 검증서를 임의 신원에 발급·회원사 콘솔에 주입할 수 있는 표면.
-  // 운영에서는 본인확인 세션 바인딩 전까지 차단(동의 흐름의 서버 내부 발급은 completeConsent 경유로 별개).
-  // TODO(운영): 서버 발급 본인확인 토큰 검증 후에만 허용.
-  if (!DEMO_MODE) {
-    return NextResponse.json({ ok: false, error: "본인확인을 거친 뒤 이용할 수 있습니다.", code: "AUTH_REQUIRED" }, { status: 403 });
-  }
   const ip = clientIp(req);
   const rl = rateLimit(`cert-submit:${ip}`, { limit: 20, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ ok: false, error: "요청이 너무 많습니다." }, { status: 429 });
@@ -54,14 +38,20 @@ export async function POST(req) {
     return NextResponse.json({ ok: false, error: "JSON 파싱 실패" }, { status: 400 });
   }
 
+  let subject;
+  try {
+    subject = await requireVerifiedSubject(req, body, { endpoint: "/api/v1/cert/submit" });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: e?.message || "본인확인 필요", code: e?.code || "AUTH_REQUIRED" },
+      { status: e?.status || 401 },
+    );
+  }
+
   const name = String(body?.name || "").trim();
   const birth = cleanBirth(body?.birth);
   const providerCode = String(body?.providerCode || "").trim();
-  if (!name || birth.length !== 6) {
-    return NextResponse.json({ ok: false, error: "name·birth 필요" }, { status: 400 });
-  }
 
-  // providerCode 없으면 직접 전달용(콘솔 귀속 없음)
   let provider = { code: "", company: "직접 전달", service: "", vertical: body.vertical || "rent" };
   if (providerCode) {
     provider = await resolveProvider(providerCode);
@@ -70,26 +60,26 @@ export async function POST(req) {
 
   try {
     const draft = await buildCertificateDraft({
-      name,
-      birth,
+      matchKey: subject.matchKey,
       vertical: body.vertical || provider.vertical || "rent",
-      method: body.method || "",
+      method: body.method || subject.method || "",
     });
     const result = await submitCertificate({
       draft,
       provider,
-      subject: {
+        subject: {
         name,
         birth,
         phone: body.phone || "",
-        method: body.method || "",
-        userId: resolveSubjectUserId(body),
+        method: body.method || subject.method || "",
+        userId: subject.userId,
+        matchKey: subject.matchKey,
       },
       signed: !!body.signed,
     });
     return NextResponse.json({ ok: true, id: result.id, cert: result.cert });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ ok: false, error: e?.message || "제출 실패" }, { status: 500 });
+    return NextResponse.json({ ok: false, error: e?.message || "제출 실패" }, { status: e?.status || 500 });
   }
 }

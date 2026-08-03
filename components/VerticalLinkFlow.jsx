@@ -75,7 +75,11 @@ export default function VerticalLinkFlow({ verticalId }) {
       const r = await fetch("/api/v1/cert/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: v.name, birth: v.birth, vertical: V.id, method: v.method }),
+        body: JSON.stringify({
+          identityToken: v.identityToken,
+          vertical: V.id,
+          method: v.method,
+        }),
       });
       const j = await r.json();
       if (j.ok) setDraft(j.draft);
@@ -119,7 +123,6 @@ export default function VerticalLinkFlow({ verticalId }) {
           vertical: V.id,
           providerCode: provider.code,
           signed: true,
-          subjectUserId: verified.userId || "",
           identityToken: verified.identityToken || "",
         }),
       });
