@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "backfill:ids": "node scripts/backfill-ids.mjs"
+    "backfill:ids": "node scripts/backfill-ids.mjs",
+    "migrate:pii": "node scripts/encrypt-pii.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",
+    "bcryptjs": "^3.0.3",
     "firebase": "^10.12.2",
     "firebase-admin": "^14.2.0",
     "next": "^14.2.35",
@@ -19,6 +21,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "vitest": "^3.2.4"
   }
 }

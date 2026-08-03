@@ -3,13 +3,13 @@ import { getAdmin } from "@/lib/server/admin";
 import { mockAddMember, mockFindMemberByEmail } from "@/lib/server/mockStore";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 import { writeAudit } from "@/lib/server/audit";
+import { hashPassword } from "@/lib/server/password";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/v1/members/register
- * 데모(Admin 미설정) 전용 가입 접수 — 서버 mock members에 pending 저장
- * Firebase 모드에서는 클라이언트가 Auth+Firestore 직접 가입
+ * 데모(Admin 미설정) 전용 가입 접수 — pw는 bcrypt 해시 저장
  */
 export async function POST(req) {
   const ip = clientIp(req);
@@ -40,10 +40,11 @@ export async function POST(req) {
   }
 
   try {
+    const pwHash = await hashPassword(pw);
     const row = mockAddMember({
       id: email,
       email,
-      pw, // 데모 전용 — 실서비스에서는 절대 평문 저장 금지
+      pw: pwHash,
       company,
       role: "member",
       code: "",

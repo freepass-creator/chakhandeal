@@ -7,6 +7,7 @@ import {
 } from "@/lib/server/mockStore";
 import { writeAudit } from "@/lib/server/audit";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
+import { ensureCompanyKey } from "@/lib/server/companyKeys";
 
 export const runtime = "nodejs";
 
@@ -71,12 +72,14 @@ export async function POST(req) {
           companyId,
           approvedAt: new Date(),
         });
+        await ensureCompanyKey(companyId);
         await writeAudit({ action: "member_approve", actor: actor.email, meta: { id, code, companyId } });
         return NextResponse.json({ ok: true, code, companyId });
       }
       const companyId = randomUUID();
       const m = mockApproveMember(id, code, companyId);
       if (!m) return NextResponse.json({ ok: false, error: "회원 없음" }, { status: 404 });
+      await ensureCompanyKey(m.companyId);
       await writeAudit({ action: "member_approve", actor: actor.email, meta: { id, code, companyId: m.companyId } });
       return NextResponse.json({ ok: true, code, companyId: m.companyId });
     }

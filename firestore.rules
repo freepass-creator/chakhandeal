@@ -1,8 +1,6 @@
 rules_version = '2';
 // 착한거래(chakhandeal) — 서버(Admin SDK) 경유 전제
-//  - risks: 클라이언트 직접 읽기/쓰기 금지 → /api/v1/check|register
-//  - consents: 생성은 Admin API(/api/v1/consent). 회원/관리자 읽기만.
-//  - audits: Admin만
+//  - risks/consents/certificates/pii_vault/company_keys: 클라 전면 차단
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAdmin() {
@@ -16,17 +14,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // 동의 — 클라이언트 직접 접근 금지. 목록/조회는 /api/v1/consents (Admin SDK).
     match /consents/{id} {
       allow create, read, update, delete: if false;
     }
 
-    // 거래위반 — 전부 서버 Admin. 클라이언트 접근 차단.
     match /risks/{id} {
       allow read, create, update, delete: if false;
     }
 
-    // 소명 — 손님 create 허용(미인증). 처리는 관리자.
     match /appeals/{id} {
       allow create: if true;
       allow read, update, delete: if isAdmin();
@@ -36,8 +31,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // 검증 기록 — Admin SDK만. 클라이언트 직접 접근 금지.
     match /certificates/{id} {
+      allow read, create, update, delete: if false;
+    }
+
+    // PII 금고 — 서버(Admin SDK) 전용
+    match /pii_vault/{id} {
+      allow read, create, update, delete: if false;
+    }
+
+    // 회사별 토큰 키 — 서버 전용
+    match /company_keys/{id} {
       allow read, create, update, delete: if false;
     }
   }

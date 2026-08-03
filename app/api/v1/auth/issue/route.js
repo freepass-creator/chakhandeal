@@ -3,6 +3,7 @@ import { DEMO_MODE } from "@/lib/constants";
 import { issueDemoToken } from "@/lib/server/session";
 import { mockFindMemberByEmail } from "@/lib/server/mockStore";
 import { CID_TEST_RENT, CID_PET } from "@/lib/server/ids";
+import { verifyPassword } from "@/lib/server/password";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,7 @@ export async function POST(req) {
   }
 
   const m = mockFindMemberByEmail(email);
-  if (m && m.pw === pw) {
+  if (m && await verifyPassword(pw, m.pw)) {
     if (m.status !== "approved") {
       return NextResponse.json({ ok: false, error: "승인 대기 중이거나 반려된 계정입니다." }, { status: 403 });
     }

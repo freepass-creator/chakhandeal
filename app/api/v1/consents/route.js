@@ -3,16 +3,39 @@ import { resolveActor, requireActor } from "@/lib/server/session";
 import { getAdmin } from "@/lib/server/admin";
 import { mockListConsents } from "@/lib/server/mockStore";
 import { canReadTransaction, auditAccessDeny } from "@/lib/server/authz";
+import { revealPii } from "@/lib/server/piiVault";
 
 export const runtime = "nodejs";
 
-function publicConsent(c) {
-  const { matchKey, subjectUserId, ownerCompanyId, ...rest } = c;
-  void matchKey; void subjectUserId; void ownerCompanyId;
-  return rest;
+/** 가명 응답 — 전역 식별자 strip. 오너만 vault에서 이름·생년 복호(표시용). */
+async function publicConsent(c, { decrypt = false } = {}) {
+  const {
+    matchKey, subjectUserId, ownerCompanyId, piiRef, phone_lookup_token,
+    ...rest
+  } = c;
+  void matchKey; void subjectUserId; void ownerCompanyId; void phone_lookup_token;
+
+  const out = {
+    ...rest,
+    company_user_token: c.company_user_token || "",
+  };
+  if (decrypt && piiRef) {
+    const pii = await revealPii(piiRef, ["name", "birth"]);
+    out.name = pii.name || "";
+    out.verified = {
+      ...(c.verified || {}),
+      birth: pii.birth || "",
+    };
+  } else {
+    out.name = out.name || "";
+    if (out.verified) {
+      out.verified = { method: out.verified.method, verifiedAt: out.verified.verifiedAt };
+    }
+  }
+  return out;
 }
 
-/** GET /api/v1/consents — 로그인 회원사 스코프 + canRead 최종확인 */
+/** GET /api/v1/consents — 로그인 회원사 스코프 + canRead 후 필요시 복호 */
 export async function GET(req) {
   try {
     const actor = requireActor(await resolveActor(req), { roles: ["member", "admin"] });
@@ -71,7 +94,14 @@ export async function GET(req) {
     const scoped = actor.role === "admin"
       ? consents
       : consents.filter((c) => canReadTransaction(actor, c));
-    return NextResponse.json({ ok: true, consents: scoped.map(publicConsent) });
+
+    const out = [];
+    for (const c of scoped) {
+      const allowDecrypt = actor.role === "admin" || canReadTransaction(actor, c);
+      out.push(await publicConsent(c, { decrypt: allowDecrypt && actor.role !== "admin" }));
+    }
+    // admin: Phase 6 전까지 복호 안 함(가명 뷰)
+    return NextResponse.json({ ok: true, consents: out });
   } catch (e) {
     if (e?.denyReason || e?.status === 401 || e?.status === 403) {
       await auditAccessDeny({
