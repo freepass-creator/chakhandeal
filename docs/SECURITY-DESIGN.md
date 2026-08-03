@@ -1,7 +1,9 @@
 # 착한거래 개인정보·거래이력 보안·권한 설계
 
-버전 0.1 · 2026-08-03 · 상태: 설계(구현 착수 전, 사용자 결정 대기)
+버전 0.2 · 2026-08-03 · 상태: 설계 확정(핵심 결정 반영), 구현은 Cursor(설계=Claude·구현=Cursor 파이프라인)
 근거: 사용자 확정 요구사항 15섹션(§) + 전수조사(2026-08-03) + 갭분석 5 워크스트림.
+
+**결정 반영(2026-08-03)**: D1=Firestore 유지+앱 봉투암호화 · D2=본인확인 당장 스텁(실 IdV 후속) · D5=관리자 2인승인은 예외접근에만. D3(교차매칭 user_id)·D4(KMS)·D6(감사 sink)는 권장안 채택·세부 확정 후속.
 
 > **정체성**: 착한거래는 기업이 이용자를 **검색**하는 시스템이 아니라, **본인이 자기 거래이력을 통제하고 필요한 상대에게 직접 제출**하는 시스템이다. 이 문서의 모든 설계는 이 한 문장에서 파생된다.
 
@@ -89,8 +91,8 @@
 
 ### Phase 1 — 기반: 불변 ID + 본인확인 토큰  【임계경로 · blocksLaunch】
 - P1 불변 memberId/companyId 발급·세션/프로필 반영. 스코프 쿼리를 companyId 기준으로 교체(상호·코드 배제).
-- P2 서버 발급 본인확인 토큰 스캐폴딩(실 IdV 연동은 아래 결정). 본인 경로에서 `name+birth` 임의조회 제거.
-- **이 단계 없이는 Phase 2~6이 전부 막힘.**
+- P2 서버 발급 본인확인 토큰 **구조**(발급·검증·바인딩·만료) 구축. 본인 경로에서 `name+birth` 임의조회 제거.
+- **D2 확정 반영**: 실 IdV는 스텁 유지 → 토큰은 데모에서 시드 userId로 발급. **실데이터 오픈은 실 IdV 연동 전까지 보류**(데모는 계속 동작). 이 단계 없이는 Phase 2~6이 전부 막힘.
 
 ### Phase 2 — 권한 강제 (canReadTransaction) 【blocksLaunch】
 - 단일 게이트 `canReadTransaction(actor, record) = isDataSubject ∨ isOwnerCompany ∨ hasValidConsentGrant`로 모든 조회 중앙화.
@@ -110,7 +112,7 @@
 - 감사 12종 확정 + 해시체인(prevHash·seq) + 외부 append-only sink(BigQuery/GCS retention lock). 감사 실패 시 폴백 금지. meta에서 원문 PII 제거.
 
 ### Phase 6 — 관리자 최소권한 + 예외접근
-- admin 기본을 마스킹 뷰로. 원문은 break-glass(사유 필수 → 가능하면 2인승인 → 감사) 경로로만. 관리자 다중신원(custom claim/admins 컬렉션)로 전환(2인승인 전제). §14 ⑥ 박제.
+- admin 기본을 마스킹 뷰로. **D5 확정**: 원문 열람은 break-glass(사유 필수 → **제2 관리자 승인** → 감사) 경로에서만(일상 조회엔 2인승인 없음). 관리자 다중신원(custom claim/admins 컬렉션)로 전환(2인승인 전제, 요청자≠승인자). §14 ⑥ 박제.
 
 ### Phase 7 — 검수 자동화 (전 단계 병행)
 - vitest 계약테스트(라우트 핸들러 직접 호출, DEMO on/off 매트릭스로 상태코드·응답 PII 부재 assert) + `@firebase/rules-unit-testing` 에뮬레이터로 규칙 검증. CI 편입.
@@ -119,22 +121,22 @@
 
 ## 4. DB 규칙(§9 "DB 수준 강제")에 대한 정직한 제약
 
-**Firebase Admin SDK는 firestore.rules를 전면 우회한다.** 따라서 현재처럼 rules를 `if false`로 두고 서버(Admin SDK)만 매개하는 구조에서는, 규칙이 표현하는 건 "클라이언트 전면차단"(기밀성)뿐이고 **3-조건·append-only·불변·관리자차단은 규칙층에 존재하지 않는다.** 스펙 §9/§13의 "DB 수준 강제"를 만족하려면 둘 중 하나:
-- **(A) 서버 전량매개 유지** + 3-조건을 서버 `canReadTransaction`에 100% 위임. rules는 클라차단만. → 무결성·불변·admin차단은 **crypto(암호화 저장) + 외부 WORM sink**로 강제(rules로 "완료" 처리 금지).
-- **(B) 관계형 DB(Postgres)로 이전** + Row-Level Security로 3-조건을 DB에 실제 강제. 가명화·key_version·조인·참조무결성에도 적합. (프리패스 ERP RLS 하드닝 선례 있음.)
+**Firebase Admin SDK는 firestore.rules를 전면 우회한다.** 따라서 현재처럼 rules를 `if false`로 두고 서버(Admin SDK)만 매개하는 구조에서는, 규칙이 표현하는 건 "클라이언트 전면차단"(기밀성)뿐이고 **3-조건·append-only·불변·관리자차단은 규칙층에 존재하지 않는다.**
+
+**결정(D1) → 옵션 (A) 채택**: Firestore 유지 + 서버 전량매개. 3-조건은 서버 `canReadTransaction`에 100% 위임(rules는 클라차단만 유지). 그 대가로 §9/§13의 "DB 수준 강제"는 규칙이 아니라 **① 서버 단일 인가게이트 ② PII 봉투암호화(관리자·DB운영자도 원문 불가) ③ 외부 append-only WORM sink(감사 불변)** 세 층으로 강제한다. **rules만으로 "DB 강제 완료" 처리 금지** — 이 점을 구현·리뷰에서 못박는다. (관계형+RLS 이전은 보류; 필요 시 재검토.)
 
 ---
 
-## 5. 사용자 결정 필요 (Phase 1 착수 전 선결)
+## 5. 결정 사항 (2026-08-03 확정 / 후속)
 
-| # | 결정 | 선택지 | 영향 |
+| # | 결정 | 상태 | 내용 |
 |---|---|---|---|
-| D1 | **저장 아키텍처** | (a) Firestore 유지 + 앱계층 봉투암호화·pii_vault (b) 관계형(Postgres)+RLS로 이전 | 전 스키마·§9 DB강제 방식 |
-| D2 | **본인확인(IdV) 제공자** | PASS / 통신사 / 기타. 없으면 isDataSubject 증명 불가 | Phase 1·2 전제 |
-| D3 | **교차매칭 모델 / user_id 정의** | 전역 위험조인키를 무엇으로(가명토큰), user_id를 전역 person id로 볼지 | §6·P4 구현 |
-| D4 | **KMS 제공자** | Cloud KMS(GCP·Firebase 동일 프로젝트) / AWS KMS / 임시 env | Phase 3 |
-| D5 | **관리자 2인승인 범위** | 모든 원문 vs break-glass만(권장: 예외접근만) + 관리자 다중신원 방식(custom claim vs admins 컬렉션) | Phase 6 |
-| D6 | **불변 감사 sink** | 해시체인만 vs 외부 WORM(BigQuery/GCS retention lock) 이중화 | Phase 5 |
+| D1 | 저장 아키텍처 | **확정** | **Firestore 유지 + 앱계층 봉투암호화·pii_vault.** §9 DB강제는 §4의 3층(인가게이트·암호화·WORM sink)으로. |
+| D2 | 본인확인(IdV) | **확정(잠정)** | **당장은 스텁 유지.** Phase 1~2는 본인확인 토큰의 **구조**만 구축, 실 IdV(PASS/통신사)는 후속. → **실데이터 오픈(blocksLaunch)은 실 IdV 전까지 보류**, 데모는 샘플 통과 유지. |
+| D3 | 교차매칭 / user_id | 권장안 | 전역 person `userId`(UUID)는 **실 IdV 시점에 생성**, `phone_lookup_token`으로 dedup. 전역 위험조인키=userId(불투명), company_user_token=HMAC(회사키,userId). **IdV 스텁 동안은 기존 matchKey를 잠정 조인키로 유지**(실 IdV 전환 시 재키잉). 세부 확정 후속. |
+| D4 | KMS | 권장안 | **Cloud KMS**(GCP·Firebase 동일 프로젝트) 목표. 프리-프로덕션·스텁 단계에선 env 기반 KEK+`key_version` 허용(운영 전 KMS 전환). |
+| D5 | 관리자 2인승인 | **확정** | **예외접근(원문 열람)에만 2인승인.** 일상은 마스킹 뷰. 원문=사유 필수→제2관리자 승인→감사. 관리자 다중신원(custom claim/admins 컬렉션) 선행. |
+| D6 | 불변 감사 sink | 권장안 | 앱 해시체인(prevHash·seq) + **외부 WORM sink 이중화**(BigQuery insert-only 또는 GCS retention lock). 세부 후속. |
 
 ---
 
