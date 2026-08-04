@@ -214,6 +214,16 @@ a{color:inherit;text-decoration:none}
 .sig-bar{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
 .sig-hint{font-size:12px;color:var(--ink3)}
 
+/* ---- 전자계약 열람 게이트 ---- */
+.contract-reader{display:flex;flex-direction:column;min-height:0;flex:1}
+.contract-body{border:1px solid var(--line);border-radius:var(--radius);background:#fbfcfd;max-height:min(42vh,340px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 0;margin-bottom:4px}
+.contract-sec{padding:14px 16px;border-top:1px solid var(--line2)}
+.contract-sec:first-child{border-top:none}
+.contract-sec-t{font-size:13px;font-weight:800;color:var(--navy);margin-bottom:6px}
+.contract-sec-b{font-size:13px;line-height:1.65;color:var(--ink2)}
+.cc.cc-disabled{opacity:.55;cursor:not-allowed;background:var(--bg)}
+.cc.cc-disabled input{cursor:not-allowed}
+
 /* ---- 동의 조항 카드 ---- */
 .clauses{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:#fff;margin-bottom:8px}
 .clause{padding:12px 14px;border-top:1px solid var(--line2)}
