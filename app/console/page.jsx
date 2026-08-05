@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { RISK_TYPES, CONTRACT_CONSENT_FORM, CONSENT_NOTICES, STATUS_NOTICES, CODE_LABEL, VIOLATION_LABEL, riskTypesFor, DEFAULT_VERTICAL, getVertical } from "@/lib/constants";
+import { AGREEMENT_KINDS, AGREEMENT_KIND_LABELS, buildConsentLink } from "@/lib/contracts";
 import { mask, fmtBirth, fmtDate } from "@/lib/format";
 import { listConsents, addRisk } from "@/lib/db";
 import { getSession, logout, authHeaders } from "@/lib/auth";
@@ -178,15 +179,54 @@ function SendTab({ toast, company, code, vertical }) {
   const [showTpl, setShowTpl] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showStatusPreview, setShowStatusPreview] = useState(false);
+  const [showContractPreview, setShowContractPreview] = useState(false);
   const [open, setOpen] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [origin, setOrigin] = useState("");
+  const [agreementKind, setAgreementKind] = useState(AGREEMENT_KINDS.PLATFORM_CONSENT);
+  const [templates, setTemplates] = useState([]);
+  const [selectedContractId, setSelectedContractId] = useState("");
+  const [previewTpl, setPreviewTpl] = useState(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
 
-  const consentUrl = origin && code ? `${origin}/consent?code=${code}` : "";
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const qs = new URLSearchParams({ vertical: vertical || DEFAULT_VERTICAL, code: code || "" });
+        const r = await fetch(`/api/v1/contracts?${qs}`);
+        const j = await r.json().catch(() => ({}));
+        if (cancelled || !r.ok || !j.ok) return;
+        setTemplates(j.templates || []);
+        if (!selectedContractId && j.templates?.[0]?.id) {
+          setSelectedContractId(j.templates[0].id);
+        }
+      } catch { /* scaffold: ignore */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vertical, code]);
+
+  useEffect(() => {
+    if (agreementKind !== AGREEMENT_KINDS.E_CONTRACT || !selectedContractId) {
+      setPreviewTpl(null);
+      return;
+    }
+    const hit = templates.find((t) => t.id === selectedContractId);
+    setPreviewTpl(hit || null);
+  }, [agreementKind, selectedContractId, templates]);
+
+  const consentUrl = origin && code
+    ? buildConsentLink({
+      origin,
+      code,
+      agreementKind,
+      contractId: agreementKind === AGREEMENT_KINDS.E_CONTRACT ? selectedContractId : "",
+    })
+    : "";
 
   async function copyText(t, okMsg = "복사되었습니다.") {
     if (!t) { toast("복사할 내용이 없습니다.", "danger"); return false; }
@@ -205,7 +245,7 @@ function SendTab({ toast, company, code, vertical }) {
       toast(`${CODE_LABEL}가 아직 없습니다. 승인 후 이용해 주세요.`, "danger");
       return;
     }
-    const ok = await copyText(consentUrl, "동의 링크가 복사되었습니다.");
+    const ok = await copyText(consentUrl, "안내 링크가 복사되었습니다.");
     if (ok) {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
@@ -220,8 +260,10 @@ function SendTab({ toast, company, code, vertical }) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "착한거래 동의 안내",
-          text: `${company} 거래 동의 및 내 상태 보내기 링크입니다.`,
+          title: agreementKind === AGREEMENT_KINDS.E_CONTRACT ? "전자계약·동의 안내" : "착한거래 동의 안내",
+          text: agreementKind === AGREEMENT_KINDS.E_CONTRACT
+            ? `${company} 전자계약 및 착한거래 동의 링크입니다.`
+            : `${company} 거래 동의 및 내 상태 보내기 링크입니다.`,
           url: consentUrl,
         });
         return;
@@ -244,8 +286,40 @@ function SendTab({ toast, company, code, vertical }) {
       <div className="card code-card">
         <div className="card-title">손님에게 안내 보내기 · {V.label}</div>
         <div className="card-desc">
-          링크를 보내면 손님이 <b>동의 및 내 상태 보내기</b>를 진행합니다. 완료되면 <b>거래상태</b> 탭에서 확인할 수 있습니다.
+          기본은 <b>착한거래 동의</b>입니다. 전자계약이 필요하면 모드를 바꾼 뒤 링크를 보내세요. 완료되면 <b>거래상태</b> 탭에서 확인할 수 있습니다.
         </div>
+
+        <div className="field" style={{ marginTop: 4 }}>
+          <label>안내 유형</label>
+          <select
+            value={agreementKind}
+            onChange={(e) => setAgreementKind(e.target.value)}
+          >
+            <option value={AGREEMENT_KINDS.PLATFORM_CONSENT}>{AGREEMENT_KIND_LABELS[AGREEMENT_KINDS.PLATFORM_CONSENT]} (기본)</option>
+            <option value={AGREEMENT_KINDS.E_CONTRACT}>{AGREEMENT_KIND_LABELS[AGREEMENT_KINDS.E_CONTRACT]} — 읽고 동의</option>
+          </select>
+        </div>
+
+        {agreementKind === AGREEMENT_KINDS.E_CONTRACT && (
+          <div className="field">
+            <label>계약서 템플릿 · {V.label}</label>
+            <select
+              value={selectedContractId}
+              onChange={(e) => setSelectedContractId(e.target.value)}
+            >
+              {templates.length === 0 && <option value="">불러오는 중…</option>}
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.source === "custom" ? "커스텀 · " : "업종 · "}{t.title}
+                </option>
+              ))}
+            </select>
+            <div className="hint" style={{ marginTop: 6 }}>
+              업종 기본서 + 회원사 커스텀(데모)을 선택할 수 있습니다. 본문 편집 UI는 이후 단계에서 붙입니다.
+            </div>
+          </div>
+        )}
+
         {consentUrl && (
           <div className="share-url" style={{ marginTop: 4, marginBottom: 12 }}>{consentUrl}</div>
         )}
@@ -284,6 +358,34 @@ function SendTab({ toast, company, code, vertical }) {
         )}
       </div>
 
+      {agreementKind === AGREEMENT_KINDS.E_CONTRACT && (
+        <div className="card">
+          <div className="card-title">전자계약서 미리보기 (틀)
+            <button type="button" className="btn btn-sm" style={{ marginLeft: "auto" }} onClick={() => setShowContractPreview((v) => !v)}>{showContractPreview ? "접기" : "미리보기"}</button>
+          </div>
+          {showContractPreview && previewTpl && (
+            <>
+              <div className="card-desc">손님이 링크에서 <b>끝까지 읽은 뒤</b>에만 동의 체크가 열립니다. 이어서 착한거래 동의가 진행됩니다.</div>
+              <div className="panel" style={{ marginBottom: 0 }}>
+                <div className="panel-head">{previewTpl.title}</div>
+                <div className="hint">{previewTpl.summary}</div>
+                <div className="clauses" style={{ marginTop: 10, marginBottom: 0 }}>
+                  {(previewTpl.sections || []).map((s, i) => (
+                    <div key={i} className="clause">
+                      <div className="clause-t">{s.t}</div>
+                      <div className="clause-b">{s.b}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+          {showContractPreview && !previewTpl && (
+            <div className="empty">표시할 계약서가 없습니다.</div>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div className="card-title">제출된 동의
           <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)", marginLeft: 6 }}>
@@ -301,7 +403,7 @@ function SendTab({ toast, company, code, vertical }) {
                   <div className="risk-row" style={{ borderBottom: "none" }}>
                     <div>
                       <div className="type">{mask(c.name)}{c.verified?.birth ? ` · ${fmtBirth(c.verified.birth)}` : ""}</div>
-                      <div className="meta">{fmtDate(c.completedAt || c.createdAt)} 제출{c.cert?.unresolved && c.cert.types?.length ? ` · ${c.cert.types.map((t) => RISK_TYPES[t] || t).join(", ")}` : ""}</div>
+                      <div className="meta">{fmtDate(c.completedAt || c.createdAt)} 제출{c.agreementKind === "e_contract" ? " · 전자계약" : ""}{c.contract?.title ? ` · ${c.contract.title}` : ""}{c.cert?.unresolved && c.cert.types?.length ? ` · ${c.cert.types.map((t) => RISK_TYPES[t] || t).join(", ")}` : ""}</div>
                     </div>
                     <div className="sp" />
                     {hasPhotos && <button type="button" className="btn btn-sm" style={{ marginRight: 8 }} onClick={() => setOpen(open === c.id ? null : c.id)}>{open === c.id ? "대조 닫기" : "신분증·얼굴 대조"}</button>}
