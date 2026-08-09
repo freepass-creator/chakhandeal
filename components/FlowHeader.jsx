@@ -2,15 +2,14 @@
 import BrandMark from "@/components/BrandMark";
 
 /**
- * @param brand   회원사 이름. 주면 착한거래 BI 대신 이것을 세운다 —
- *                손님은 «자기가 거래하는 회사»와 계약한다고 알기 때문이다.
- * @param compact 헤더를 한 줄로 눌러 본문에 자리를 내준다(전자계약 손님 화면).
+ * @param brand   상단에 지속 표시할 서비스 브랜드. 축소형 기본값은 착한거래다.
+ * @param compact 브랜드와 현재 페이지 소개를 작은 2단 헤더로 표시한다.
  */
 export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels = null, brand = "", compact = false }) {
   const safeStep = Math.max(0, Math.min(Number(step) || 0, Number(steps) || 0));
   const labels = Array.isArray(stepLabels) && stepLabels.length === steps ? stepLabels : null;
 
-  // 계약 화면 — 회사명·문서명·차량을 «한 줄»로. 큰 로고와 h1 이 화면을 먹지 않게.
+  // 계약 화면 — 브랜드와 현재 단계를 짧게 유지해 본문 공간을 과도하게 차지하지 않는다.
   if (compact) {
     return (
       <>
@@ -24,20 +23,32 @@ export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels
           임대인·차량·계약번호는 첫 화면의 «계약 요지» 카드가 이미 보여준다 —
           헤더가 같은 것을 또 말하면 본문 자리를 먹고 읽기를 방해한다.
         */}
-        <div className="c-head" style={{ paddingTop: 10, paddingBottom: 4 }}>
+        <div className="c-head" style={{ paddingTop: "calc(10px + var(--sat))", paddingBottom: 8 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            {/*
-              ⚠ 전자계약 화면에는 착한거래 BI/CI 를 «절대» 세우지 않는다.
-              손님은 회원사(프리패스)와 계약하는 것이고, 착한거래는 뒤에 있는 인프라다.
-              여기에 로고가 서면 손님 눈에는 「모르는 회사가 계약에 끼어 있다」로 읽힌다.
-              브랜드가 필요하면 회원사 이름을 쓰되, 그것도 본문(계약 요지 카드)이 말한다.
-            */}
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-.3px" }}>
-              {brand || title || "전자계약"}
-            </span>
+            {/* 계약 당사자는 본문에서 분명히 밝히고, 상단에는 서비스 제공 브랜드를 일관되게 표시한다. */}
+            <a
+              href="/"
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, color: "#fff", textDecoration: "none" }}
+              aria-label="착한거래 홈"
+            >
+              <BrandMark size={14} className="brand-mark" />
+              <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-.3px" }}>
+                {brand || "착한거래"}
+              </span>
+            </a>
             {steps > 0 && (
               <span style={{ flex: "none", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.72)", fontVariantNumeric: "tabular-nums" }}>
                 {safeStep} / {steps}
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginTop: 7, minWidth: 0 }}>
+            <span style={{ color: "#fff", fontSize: 15, fontWeight: 800, letterSpacing: "-.35px", flex: "none" }}>
+              {title || "전자계약"}
+            </span>
+            {sub && (
+              <span style={{ color: "rgba(255,255,255,.72)", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {sub}
               </span>
             )}
           </div>

@@ -606,17 +606,22 @@ export default function LabEsignFlow({ payload, api = null }) {
   }
 
   /*
-   * 헤더는 «전자계약 · 몇 단계 중 몇 번째»만 말하고 물러선다.
-   *  - 착한거래 BI/CI 는 어디에도 세우지 않는다. 손님은 회원사와 계약하는 것이고,
-   *    낯선 회사 로고가 계약 화면에 서면 「누가 끼어 있나」로 읽힌다.
-   *  - 「누구와 무슨 계약인지」는 첫 화면의 계약 요지 카드가 말한다.
-   *  - 첫 화면에서는 진행 표시도 숨긴다 — 아직 시작 전이라 「1/8」이 의미가 없다.
+   * 상단에는 서비스 제공자(착한거래)와 현재 계약 단계를 계속 표시한다.
+   * 계약 당사자와 조건은 첫 화면의 계약 요지 카드에서 별도로 분명히 밝힌다.
+   * 첫 화면에서는 아직 시작 전이므로 「1/8」 진행 숫자만 숨긴다.
    */
   const started = step.kind !== "summary";
+  const currentHeaderLabel = step.kind === "auth"
+    ? `본인확인 · ${authLabel}`
+    : step.kind === "done"
+      ? "서명 완료"
+      : (MACROS[macroIdx]?.label || "계약 확인");
   const header = (
     <FlowHeader
       compact
+      brand="착한거래"
       title="전자계약"
+      sub={currentHeaderLabel}
       steps={started ? MACROS.length : 0}
       step={step.macro === "done" ? MACROS.length : macroIdx + 1}
       stepLabels={MACROS.map((m) => m.label)}
