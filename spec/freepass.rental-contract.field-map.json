@@ -416,8 +416,14 @@
     {
         "field":  "over_mileage_rate",
         "label":  "초과 주행요금",
-        "from":  "미정",
-        "atom":  ""
+        "from":  "정책",
+        "atom":  "over_mileage_rate_per_km"
+    },
+    {
+        "field":  "accident_termination_count",
+        "label":  "사고 누적 해지",
+        "from":  "정책",
+        "atom":  "accident_termination_count"
     },
     {
         "field":  "driver_age",
