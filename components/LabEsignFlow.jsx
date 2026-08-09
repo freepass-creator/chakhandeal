@@ -513,7 +513,9 @@ export default function LabEsignFlow({ payload, api = null }) {
       setErr(e?.message || "촬영본 수신 실패");
     } finally {
       setBusy(false);
-      setIdx(1);
+      // 본인확인을 마쳤으면 «그 다음» 단계로. (고정 인덱스로 보내면 단계 구성이
+      // 바뀔 때 엉뚱한 화면으로 간다 — 실제로 계약서 대신 동의로 되돌아갔었다.)
+      setIdx((i) => Math.min(i + 1, steps.length - 1));
       window.scrollTo({ top: 0 });
     }
   }
@@ -537,6 +539,27 @@ export default function LabEsignFlow({ payload, api = null }) {
     if (!inlineConsentsOk) return "동의 선택이 남았습니다";
     return "다음";
   })();
+
+  /**
+   * 뒤로 갈 곳. 앞 단계를 다시 볼 수 있어야 계약을 «확인하고» 서명하는 것이 된다.
+   *
+   * 두 가지를 지킨다.
+   *  ① 첫 화면(계약 요지)까지 돌아갈 수 있다 — 「무슨 계약이었지」를 다시 볼 자리다.
+   *  ② 본인확인은 건너뛴다 — 이미 촬영을 마쳤는데 되돌아가면 처음부터 다시 찍게 된다.
+   */
+  const prevIdx = useMemo(() => {
+    for (let i = idx - 1; i >= 0; i -= 1) {
+      if (steps[i].kind === "auth" && verified) continue;
+      return i;
+    }
+    return null;
+  }, [idx, steps, verified]);
+
+  const goPrev = useCallback(() => {
+    if (prevIdx === null) return;
+    setIdx(prevIdx);
+    window.scrollTo({ top: 0 });
+  }, [prevIdx]);
 
   function canNext() {
     if (step.kind === "summary") return true;
@@ -582,21 +605,17 @@ export default function LabEsignFlow({ payload, api = null }) {
     window.scrollTo({ top: 0 });
   }
 
-  /**
-   * 헤더는 «이 계약이 무엇인지» 한 줄로. 손님이 열자마자 「내 차, 내 계약」임을 알아야 한다.
-   * 착한거래 BI 는 세우지 않는다 — 손님은 회원사와 계약하는 것이고, 착한거래는 뒤에 있는 인프라다.
-   */
   /*
-   * 헤더는 «전자계약 · 몇 단계 중 몇 번째»만. 첫 화면(계약 요지)이
-   * 「누구와 무슨 계약인지」를 이미 말하므로 헤더가 그걸 또 말하지 않는다.
-   * 첫 화면에서는 진행 표시도 숨긴다 — 아직 시작 전이라 「1/8」이 의미가 없다.
+   * 헤더는 «전자계약 · 몇 단계 중 몇 번째»만 말하고 물러선다.
+   *  - 착한거래 BI/CI 는 어디에도 세우지 않는다. 손님은 회원사와 계약하는 것이고,
+   *    낯선 회사 로고가 계약 화면에 서면 「누가 끼어 있나」로 읽힌다.
+   *  - 「누구와 무슨 계약인지」는 첫 화면의 계약 요지 카드가 말한다.
+   *  - 첫 화면에서는 진행 표시도 숨긴다 — 아직 시작 전이라 「1/8」이 의미가 없다.
    */
   const started = step.kind !== "summary";
   const header = (
     <FlowHeader
       compact
-      // 브랜드는 첫 화면에서만 — 이후에는 계약 내용에 자리를 내준다.
-      brand={started ? "" : "착한거래"}
       title="전자계약"
       steps={started ? MACROS.length : 0}
       step={step.macro === "done" ? MACROS.length : macroIdx + 1}
@@ -608,7 +627,19 @@ export default function LabEsignFlow({ payload, api = null }) {
     return (
       <div className="app">
         {header}
-        <div className="hint" style={{ padding: "0 16px 8px" }}>본인확인 · {authLabel}</div>
+        {/* 본인확인 화면은 AuthFlow 가 통째로 그린다 — 되돌아갈 길만 여기서 낸다. */}
+        <div className="hint" style={{ padding: "0 16px 8px", display: "flex", justifyContent: "space-between", gap: 10 }}>
+          <span>본인확인 · {authLabel}</span>
+          {prevIdx !== null && (
+            <button
+              type="button"
+              onClick={goPrev}
+              style={{ background: "none", border: 0, padding: 0, cursor: "pointer", color: "var(--ink3)", font: "inherit", fontWeight: 700 }}
+            >
+              ← 이전
+            </button>
+          )}
+        </div>
         <AuthFlow
           contractId={payload.contractId || ""}
           onVerified={onVerified}
@@ -848,6 +879,39 @@ export default function LabEsignFlow({ payload, api = null }) {
                 </div>
               </div>
             )}
+
+            {/*
+              계약서 사본. 서명한 사람은 «자기가 서명한 문서»를 가져갈 수 있어야 한다.
+              지금 이 자리가 가장 확실한 시점이다 — 본인확인이 아직 살아 있다.
+            */}
+            {api?.openDocument && (
+              <div style={{ marginTop: 14 }}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={busy}
+                  style={{ width: "100%" }}
+                  onClick={async () => {
+                    setBusy(true);
+                    setErr("");
+                    try {
+                      await api.openDocument();
+                    } catch (e) {
+                      setErr(e?.message || "계약서를 열지 못했습니다.");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  계약서 받기 (PDF 저장·인쇄)
+                </button>
+                <p className="sdesc" style={{ marginTop: 8 }}>
+                  새 창에서 계약서가 열립니다. <b>인쇄</b>를 눌러 «대상»을 <b>PDF로 저장</b>,
+                  용지를 <b>A4</b>로 두면 파일로 받을 수 있습니다.
+                  나중에 다시 받으시려면 계약 링크를 열어 본인확인을 하시면 됩니다.
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -862,7 +926,7 @@ export default function LabEsignFlow({ payload, api = null }) {
 
       {step.kind !== "done" && (
         <StepFooter
-          prev={idx > 1 ? { onClick: () => { setIdx((i) => Math.max(1, i - 1)); window.scrollTo({ top: 0 }); }, disabled: busy } : null}
+          prev={prevIdx === null ? null : { onClick: goPrev, disabled: busy }}
           next={{ label: nextLabel, onClick: next, disabled: busy || !canNext() }}
         />
       )}

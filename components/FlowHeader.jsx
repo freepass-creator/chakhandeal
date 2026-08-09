@@ -27,22 +27,14 @@ export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels
         <div className="c-head" style={{ paddingTop: 10, paddingBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             {/*
-              브랜드는 «첫 화면에서만». 손님이 「이 서명 서비스가 어디 건지」를 한 번은 알아야 하지만,
-              계약을 읽는 동안 계속 서 있으면 계약 내용과 경쟁한다.
+              ⚠ 전자계약 화면에는 착한거래 BI/CI 를 «절대» 세우지 않는다.
+              손님은 회원사(프리패스)와 계약하는 것이고, 착한거래는 뒤에 있는 인프라다.
+              여기에 로고가 서면 손님 눈에는 「모르는 회사가 계약에 끼어 있다」로 읽힌다.
+              브랜드가 필요하면 회원사 이름을 쓰되, 그것도 본문(계약 요지 카드)이 말한다.
             */}
-            {brand ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                <BrandMark size={15} className="brand-mark" />
-                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: "-.3px" }}>
-                  <span style={{ color: "var(--safe)" }}>착한</span>거래
-                </span>
-                <span style={{ fontSize: 12, color: "var(--ink3)", fontWeight: 600 }}>전자계약</span>
-              </span>
-            ) : (
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", letterSpacing: "-.3px" }}>
-                {title || "전자계약"}
-              </span>
-            )}
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", letterSpacing: "-.3px" }}>
+              {brand || title || "전자계약"}
+            </span>
             {steps > 0 && (
               <span style={{ flex: "none", fontSize: 11, fontWeight: 700, color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>
                 {safeStep} / {steps}
