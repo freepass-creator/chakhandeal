@@ -47,7 +47,7 @@ function useDesktopSoft() {
  * 본인확인
  * DEMO_MODE: 빈 입력·문자도 통과. 신분증/얼굴은 촬영 → 확인 → 다음.
  */
-export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onProgress = null }) {
+export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onProgress = null, contractId = "" }) {
   const [stage, setStage] = useState("method");
   const [ocrUsed, setOcrUsed] = useState(false);
   const [a, setA] = useState(() => (DEMO_MODE ? demoId() : { name: "", birth: "", phone: "" }));
@@ -93,6 +93,9 @@ export default function AuthFlow({ onVerified, onCancel, supportHelp = null, onP
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // 전자계약 링크로 들어온 경우 계약을 함께 보낸다 — 서버가 그 계약의
+          // 서명자와 대조해서만 발급한다(운영에서 열리는 유일한 경로).
+          contractId: contractId || undefined,
           name: payload.name,
           birth: payload.birth,
           phone: payload.phone,

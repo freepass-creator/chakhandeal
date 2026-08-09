@@ -571,6 +571,7 @@ export default function LabEsignFlow({ payload, api = null }) {
         {header}
         <div className="hint" style={{ padding: "0 16px 8px" }}>본인확인 · {authLabel}</div>
         <AuthFlow
+          contractId={payload.contractId || ""}
           onVerified={onVerified}
           onCancel={() => setAuthLabel("방법")}
           onProgress={(p) => setAuthLabel((p || authProgress("method")).label)}
