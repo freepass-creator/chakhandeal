@@ -14,22 +14,41 @@ export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels
   if (compact) {
     return (
       <>
-        <div className="c-head" style={{ paddingTop: 12, paddingBottom: 8 }}>
-          {/* 회사명 왼쪽 · 진행 오른쪽 — 한 줄에 붙여 세로 공간을 아낀다 */}
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-            {brand
-              ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink3)", letterSpacing: "-.2px" }}>{brand}</span>
-              : <span />}
+        {/*
+          상단바는 «어디에 있는지»만 알려주고 물러선다.
+          본문과 같은 검정·같은 크기로 두면 계약 내용과 경쟁해서 읽기를 방해한다.
+          → 제목은 네이비로 낮추고, 크기·굵기도 본문 제목보다 작게.
+        */}
+        {/*
+          상단바는 «무엇을 하는 화면인지»와 «어디쯤인지»만 말하고 물러선다.
+          임대인·차량·계약번호는 첫 화면의 «계약 요지» 카드가 이미 보여준다 —
+          헤더가 같은 것을 또 말하면 본문 자리를 먹고 읽기를 방해한다.
+        */}
+        <div className="c-head" style={{ paddingTop: 10, paddingBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            {/*
+              브랜드는 «첫 화면에서만». 손님이 「이 서명 서비스가 어디 건지」를 한 번은 알아야 하지만,
+              계약을 읽는 동안 계속 서 있으면 계약 내용과 경쟁한다.
+            */}
+            {brand ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <BrandMark size={15} className="brand-mark" />
+                <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: "-.3px" }}>
+                  <span style={{ color: "var(--safe)" }}>착한</span>거래
+                </span>
+                <span style={{ fontSize: 12, color: "var(--ink3)", fontWeight: 600 }}>전자계약</span>
+              </span>
+            ) : (
+              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", letterSpacing: "-.3px" }}>
+                {title || "전자계약"}
+              </span>
+            )}
             {steps > 0 && (
               <span style={{ flex: "none", fontSize: 11, fontWeight: 700, color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>
                 {safeStep} / {steps}
               </span>
             )}
           </div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--ink)", letterSpacing: "-.4px", marginTop: 2 }}>
-            {title}
-          </div>
-          {sub && <div style={{ fontSize: 12, color: "var(--ink3)", marginTop: 3 }}>{sub}</div>}
         </div>
         {/*
           점만 남긴다. 단계 이름을 여기 붙이면 좁은 폭에서 잘려 읽히지 않는다 —

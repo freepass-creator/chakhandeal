@@ -586,19 +586,19 @@ export default function LabEsignFlow({ payload, api = null }) {
    * 헤더는 «이 계약이 무엇인지» 한 줄로. 손님이 열자마자 「내 차, 내 계약」임을 알아야 한다.
    * 착한거래 BI 는 세우지 않는다 — 손님은 회원사와 계약하는 것이고, 착한거래는 뒤에 있는 인프라다.
    */
-  const vehicleRow = (pages.find((p) => p.key === "vehicle")?.rows || []);
-  const carNo = asText(vehicleRow.find((r) => asText(r.label) === "차량번호")?.value);
-  const carName = asText(vehicleRow.find((r) => asText(r.label) === "차량")?.value);
-  const headSub = [carNo, carName].filter(Boolean).join(" · ")
-    || asText(payload.externalRef);
-
+  /*
+   * 헤더는 «전자계약 · 몇 단계 중 몇 번째»만. 첫 화면(계약 요지)이
+   * 「누구와 무슨 계약인지」를 이미 말하므로 헤더가 그걸 또 말하지 않는다.
+   * 첫 화면에서는 진행 표시도 숨긴다 — 아직 시작 전이라 「1/8」이 의미가 없다.
+   */
+  const started = step.kind !== "summary";
   const header = (
     <FlowHeader
       compact
-      brand={asText(payload.member?.name) || asText(payload.memberCompany)}
-      title={asText(payload.contractKind?.title) || "자동차 대여 계약서"}
-      sub={headSub}
-      steps={MACROS.length}
+      // 브랜드는 첫 화면에서만 — 이후에는 계약 내용에 자리를 내준다.
+      brand={started ? "" : "착한거래"}
+      title="전자계약"
+      steps={started ? MACROS.length : 0}
       step={step.macro === "done" ? MACROS.length : macroIdx + 1}
       stepLabels={MACROS.map((m) => m.label)}
     />
@@ -853,30 +853,11 @@ export default function LabEsignFlow({ payload, api = null }) {
 
         {err && <div className="auth-err" style={{ marginTop: 10 }}>{err}</div>}
 
-        {/* 테스트용 — 손님 화면에 있을 것이 아니다. 설계 단계에서 담당자 콘솔로 옮긴다. */}
-        <div className="panel" style={{ marginTop: 18 }}>
-          <div
-            className="panel-head"
-            style={{ display: "flex", justifyContent: "space-between", cursor: "pointer" }}
-            onClick={() => setLogOpen((v) => !v)}
-          >
-            <span>[테스트] 서버 수신 로그 ({log.length})</span>
-            <span className="hint">{logOpen ? "접기" : "펼치기"}</span>
-          </div>
-          {logOpen && (
-            log.length === 0
-              ? <p className="sdesc" style={{ margin: 0 }}>아직 받은 파일이 없습니다.</p>
-              : log.map((it, i) => (
-                <div className="receipt" key={i} style={{ marginBottom: 8 }}>
-                  <div className="r"><span className="k">항목</span><span className="v mono">{it.key} · v{it.version}</span></div>
-                  <div className="r"><span className="k">저장 경로</span><span className="v mono" style={{ wordBreak: "break-all" }}>{it.storagePath}</span></div>
-                  <div className="r"><span className="k">크기 · 형식</span><span className="v mono">{it.bytes.toLocaleString("ko-KR")}B · {it.contentType}</span></div>
-                  <div className="r"><span className="k">sha256</span><span className="v mono" style={{ wordBreak: "break-all" }}>{it.sha256.slice(0, 32)}…</span></div>
-                  <div className="r"><span className="k">수신 시각</span><span className="v mono">{new Date(it.receivedAt).toLocaleString("ko-KR")}</span></div>
-                </div>
-              ))
-          )}
-        </div>
+        {/*
+          «서버 수신 로그»는 손님 화면에서 걷어냈다.
+          저장 경로·해시는 손님이 알 필요가 없고, 오히려 불안하게 만든다.
+          담당자가 볼 정보이므로 관리자 콘솔로 간다.
+        */}
       </div>
 
       {step.kind !== "done" && (
