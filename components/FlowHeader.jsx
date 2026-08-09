@@ -32,11 +32,11 @@ export default function FlowHeader({ title, sub, steps = 0, step = 0, stepLabels
               여기에 로고가 서면 손님 눈에는 「모르는 회사가 계약에 끼어 있다」로 읽힌다.
               브랜드가 필요하면 회원사 이름을 쓰되, 그것도 본문(계약 요지 카드)이 말한다.
             */}
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)", letterSpacing: "-.3px" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", letterSpacing: "-.3px" }}>
               {brand || title || "전자계약"}
             </span>
             {steps > 0 && (
-              <span style={{ flex: "none", fontSize: 11, fontWeight: 700, color: "var(--ink3)", fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ flex: "none", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.72)", fontVariantNumeric: "tabular-nums" }}>
                 {safeStep} / {steps}
               </span>
             )}
