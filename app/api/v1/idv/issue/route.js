@@ -73,9 +73,13 @@ export async function POST(req) {
       await auditAccessDeny({ actor: ip, endpoint: "/api/v1/idv/issue", reason: "contract_not_found" });
       return NextResponse.json({ ok: false, error: "계약을 찾을 수 없습니다." }, { status: 404 });
     }
-    if (inst.status === "signed") {
-      return NextResponse.json({ ok: false, error: "이미 서명된 계약입니다.", code: "ALREADY_SIGNED" }, { status: 409 });
-    }
+    /*
+     * 서명이 끝난 계약이라도 본인확인은 계속 발급한다 —
+     * 계약자가 나중에 «자기 계약서 사본»을 받으려면 신원을 다시 증명해야 하기 때문이다.
+     * 여기서 막으면 서명한 사람이 자기 계약서를 영영 못 받는다.
+     * 다시 서명하는 길은 이 토큰으로도 열리지 않는다 — 서명 API 가 따로 막는다(ALREADY_SIGNED).
+     * 아래 서명자 일치 검사는 그대로 걸리므로, 남이 사본을 받아 갈 수는 없다.
+     */
 
     // 계약서에 적힌 서명자와 일치해야만 발급한다.
     const want = makeMatchKey(inst.signer?.name, inst.signer?.birth);
