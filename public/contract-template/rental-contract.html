@@ -236,6 +236,7 @@
 /*
   값이 안 온 칸은 봉인본에서 비워진다. 완전히 빈칸이면 «빠뜨린 건지 원래 없는 건지» 알 수 없으므로
   종이 계약서처럼 옅은 밑줄만 남겨 «기재란»임을 보인다.
+  (표지 요지칸은 뺐지만, 다른 서식에서 `.cover-sum` 을 쓸 때를 위해 규칙은 남긴다.)
 */
 .cover-sum .cs .csv:empty::before,.cover-sum .cs .cssub:empty::before{content:"";display:inline-block;width:26mm;border-bottom:1px dotted var(--bd);vertical-align:middle}
 .cover-sum .cs .cssub:empty::before{width:18mm}
@@ -305,38 +306,14 @@
     <div class="cover-hero">
       <div class="cover-kicker" data-field="doc_kicker">AUTOMOBILE RENTAL AGREEMENT</div>
       <h1 class="cover-title" data-field="doc_title">자동차 렌탈 계약서</h1>
-      <div class="cover-lead">
-        본 계약서는 자동차 대여의 조건을 정한 것으로, 계약 내용은 본문 01~10 항목과
-        말미의 약관으로 이루어집니다. 특약사항이 있는 경우 특약이 우선합니다.
-      </div>
     </div>
 
     <!--
-      계약 요지 — 표지에서 «무슨 계약인지»가 한눈에 보여야 한다.
-      (CSS `.cover-sum` 은 처음부터 있었으나 마크업이 빠져 있어 표지 가운데가 비어 있었다.)
+      표지 가운데는 «비워 둔다»(2026-08-09 사장님 판단).
+      계약 요지 4칸(`.cover-sum`)을 넣어 봤으나 표지가 요약서처럼 읽혔다.
+      계약 내용은 02~03 항목이 제대로 말하므로, 표지는 문서명과 당사자만 세운다.
+      CSS `.cover-sum` 은 남겨 둔다 — 다른 회원사 서식에서 쓸 수 있다.
     -->
-    <div class="cover-sum">
-      <div class="cs">
-        <div class="csl">차량</div>
-        <div class="csv" data-field="vehicle_name">—</div>
-        <div class="cssub" data-field="car_number">—</div>
-      </div>
-      <div class="cs">
-        <div class="csl">대여기간</div>
-        <div class="csv" data-field="rent_month">—</div>
-        <div class="cssub">차량 인도일부터 기산</div>
-      </div>
-      <div class="cs">
-        <div class="csl">월 대여료</div>
-        <div class="csv"><span data-field="rent_amount">—</span> 원</div>
-        <div class="cssub" data-field="payment_day">—</div>
-      </div>
-      <div class="cs">
-        <div class="csl">보증금</div>
-        <div class="csv"><span data-field="deposit_amount">—</span> 원</div>
-        <div class="cssub" data-field="deposit_installment">—</div>
-      </div>
-    </div>
 
     <!-- 계약 당사자 (하단) -->
     <div class="cover-parties-cap">본 자동차 임대차 계약은 아래 당사자 간 체결됩니다</div>
