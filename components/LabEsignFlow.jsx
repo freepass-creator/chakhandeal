@@ -45,6 +45,7 @@ import s from "@/components/LabEsignFlow.module.css";
  *   차량 인수증(인도 시점)·연대보증(번외)은 계약과 별개 문서라 이 여정에 없다.
  */
 const MACROS = [
+  { key: "summary", label: "계약 확인" },
   { key: "consent", label: "동의" },
   { key: "identity", label: "본인확인" },
   { key: "contract", label: "계약서" },
@@ -52,6 +53,19 @@ const MACROS = [
   { key: "cautions", label: "주의사항" },
   { key: "docs", label: "첨부서류" },
   { key: "sign", label: "서명" },
+];
+
+/**
+ * 맨 앞 «계약 확인» 화면에 세울 항목.
+ * 손님이 「무슨 계약인지」를 알아야 그다음 동의가 의미를 갖는다.
+ * 이 화면은 **아무것도 수집하지 않고 보여주기만** 하므로 동의 앞에 와도 된다.
+ */
+const SUMMARY_PICKS = [
+  { group: "vehicle", label: "차량번호" },
+  { group: "vehicle", label: "차량" },
+  { group: "rental", label: "대여기간" },
+  { group: "rental", label: "월 대여료" },
+  { group: "rental", label: "보증금" },
 ];
 
 /** 계좌를 받는 자리에서 물어야 하는 동의 — 맨 앞으로 보내지 않는다. */
@@ -406,8 +420,19 @@ export default function LabEsignFlow({ payload, api = null }) {
   const upfrontAtoms = allAtoms.filter((c) => !AT_POINT_OF_USE.has(c.group));
   const inlineAtoms = allAtoms.filter((c) => AT_POINT_OF_USE.has(c.group));
 
+  /** 계약 요지 — consentPages 에서 핵심 항목만 추린다. 없으면 그 줄은 없다. */
+  const summaryRows = useMemo(() => {
+    const out = [];
+    for (const pick of SUMMARY_PICKS) {
+      const page = pages.find((p) => p.key === pick.group);
+      const row = (page?.rows || []).find((r) => asText(r.label) === pick.label);
+      if (row && asText(row.value)) out.push({ label: pick.label, value: asText(row.value) });
+    }
+    return out;
+  }, [pages]);
+
   const steps = useMemo(() => {
-    const s = [];
+    const s = [{ macro: "summary", kind: "summary" }];
     if (upfrontAtoms.length) s.push({ macro: "consent", kind: "consent" });
     s.push({ macro: "identity", kind: "auth" });
     s.push({ macro: "contract", kind: "contract" });
@@ -504,6 +529,7 @@ export default function LabEsignFlow({ payload, api = null }) {
   /** 버튼이 스스로 «왜 못 누르는지» 말한다 — 진행바를 화면에 띄워둘 이유가 없다. */
   const nextLabel = (() => {
     if (step.kind === "sign") return "제출";
+    if (step.kind === "summary") return "맞습니다, 계속하기";
     if (step.kind === "consent") return upfrontConsentsOk ? "동의하고 시작" : "동의가 필요합니다";
     if (step.kind !== "contract") return "다음";
     if (pagesLeft > 0) return `${pagesLeft}개 더 확인`;
@@ -513,6 +539,7 @@ export default function LabEsignFlow({ payload, api = null }) {
   })();
 
   function canNext() {
+    if (step.kind === "summary") return true;
     if (step.kind === "consent") return upfrontConsentsOk;
     if (step.kind === "contract") return contractDone;
     if (step.kind === "terms") return agreed;
@@ -586,6 +613,33 @@ export default function LabEsignFlow({ payload, api = null }) {
       {header}
       <div className="c-body">
         {verified && step.macro !== "done" && <VerifiedCard v={verified} />}
+
+        {step.kind === "summary" && (
+          <>
+            <div className="stitle">
+              {payload.signer?.name ? `${asText(payload.signer.name)}님, ` : ""}아래 계약이 맞습니까?
+            </div>
+            <p className="sdesc">
+              계약 내용을 확인하고 서명하는 절차입니다. 아래가 본인이 진행하는 계약이 맞는지 먼저 봐 주세요.
+            </p>
+
+            <div className={s.card}>
+              <div className={s.head}>
+                <span className={s.title}>{asText(payload.contractKind?.title) || "자동차 대여 계약"}</span>
+                <span className={`${s.badge} ${s.badgeReady}`}>{asText(payload.memberCompany)}</span>
+              </div>
+              <div className={s.body}>
+                {summaryRows.map((r) => <Field key={r.label} label={r.label} value={r.value} />)}
+                <Field label="계약번호" value={payload.externalRef} />
+              </div>
+            </div>
+
+            <p className="sdesc">
+              내용이 다르면 <b>서명하지 마시고</b> 계약 담당자에게 알려 주세요.
+              다음으로 넘어가면 신분증 확인과 개인정보 동의를 받습니다.
+            </p>
+          </>
+        )}
 
         {step.kind === "consent" && (
           <>
@@ -707,8 +761,40 @@ export default function LabEsignFlow({ payload, api = null }) {
         {step.kind === "sign" && (
           <>
             <div className="stitle">서명해 주세요</div>
-            <p className="sdesc">계약은 한 건입니다. 한 번 서명하면 계약서 전체와 약관에 함께 적용됩니다.</p>
+            {/*
+              전자서명법 제2조 제2호 — 전자서명은 «서명자를 확인»하고 «서명자가 서명했음을
+              나타내는 데» 이용되어야 한다. 그러려면 손님이 **무엇에 서명하는지**가
+              서명 화면에 있어야 한다. 「서명해 주세요」와 빈 서명판만으로는
+              나중에 「무엇에 서명한 줄 몰랐다」를 막을 수 없다.
+            */}
+            <div className={s.card}>
+              <div className={s.head}>
+                <span className={s.title}>무엇에 서명하나</span>
+                <span className={`${s.badge} ${s.badgeReady}`}>서명 대상</span>
+              </div>
+              <div className={s.body}>
+                <Field label="계약서" value={asText(payload.contractKind?.title) || "자동차 대여 계약서"} />
+                <Field label="계약번호" value={payload.externalRef} />
+                <Field label="임대인" value={payload.memberCompany} />
+                <Field
+                  label="약관"
+                  value={`${asText(payload.agreement?.title)} · ${asText(payload.agreement?.version)} · ${(payload.agreement?.sections || []).length}개조`}
+                />
+                <Field label="계약 내용 확인" value={`${checkedCount} / ${pages.length} 섹션 확인 완료`} />
+                <Field label="개인정보 동의" value={`${allAtoms.filter((c) => acks[c.key] === true).length}건 동의`} />
+                <Field label="제출 서류" value={`${docs.filter((d) => files[d.key]).length} / ${docs.length}건`} />
+              </div>
+              <div className={s.foot}>
+                아래에 서명하시면 <b>위 계약서와 약관에 동의</b>한 것으로 봅니다.
+              </div>
+            </div>
+
             <SignaturePad onChange={setSig} fill />
+
+            <p className="sdesc" style={{ marginTop: 10 }}>
+              서명 시각과 접속 정보(IP)가 함께 기록되며, 서명 후에는 내용을 바꿀 수 없습니다.
+              기록은 위·변조를 확인할 수 있도록 봉인됩니다.
+            </p>
           </>
         )}
 
@@ -726,21 +812,25 @@ export default function LabEsignFlow({ payload, api = null }) {
               </div>
             </div>
 
+            {/*
+              서명 후 «사본»에 해당하는 것. 손님이 나중에 「내가 뭘 서명했는지」를
+              확인할 수 있는 근거가 있어야 한다. 계약서 원본은 당사자에게만 나가므로
+              여기서는 검증번호와 봉인해시로 대신한다.
+            */}
             {saved && (
               <div className={s.card}>
                 <div className={s.head}>
-                  <span className={s.title}>계약서 저장</span>
-                  <span className={`${s.badge} ${saved.store === "firestore" ? s.badgeDone : s.badgeWait}`}>
-                    {saved.store === "firestore" ? "Firestore" : "파일(자격 없음)"}
-                  </span>
+                  <span className={s.title}>서명 확인증</span>
+                  <span className={`${s.badge} ${s.badgeDone}`}>보관해 두세요</span>
                 </div>
                 <div className={s.body}>
-                  <Field label="계약 번호" value={saved.contractId} />
+                  <Field label="검증번호" value={saved.certificate?.verifyNo} />
                   <Field label="봉인 해시" value={saved.sealHash} />
-                  <Field label="원자용 계약서" value={`항목 ${saved.counts.atoms}개 · 확인 ${saved.counts.confirmed}건`} />
-                  <Field label="A4용 계약서" value={`섹션 ${saved.counts.a4Sections}개 · 약관 ${saved.counts.articles}개조`} />
-                  <Field label="증명서용" value={saved.certificate?.verifyNo} />
-                  <Field label="저장 위치" value={saved.path} />
+                  <Field label="서명 시각" value={new Date().toLocaleString("ko-KR")} />
+                  <Field
+                    label="문의"
+                    value="계약 내용에 이의가 있으시면 위 검증번호와 함께 계약 담당자에게 알려 주세요."
+                  />
                 </div>
               </div>
             )}

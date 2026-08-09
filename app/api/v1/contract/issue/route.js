@@ -62,7 +62,8 @@ export async function POST(req) {
     });
     return NextResponse.json({
       contractId: instance.contractId,
-      signUrl: buildSignUrl(origin, instance.contractId),
+      // 손님에게 나가는 링크는 «회원사 도메인» 우선. 처음 보는 도메인이면 피싱으로 읽힌다.
+      signUrl: buildSignUrl(origin, instance.contractId, instance.memberCompany),
       expiresAt: instance.expiresAt,
       verifyUrl: instance.verifyUrl || "",
       sealHash: instance.sealHash || "",
