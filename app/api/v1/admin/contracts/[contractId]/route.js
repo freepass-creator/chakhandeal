@@ -3,8 +3,10 @@ import { resolveActor, requireActor } from "@/lib/server/session";
 import {
   getContractInstance,
   markIdentityVerifiedByStaff,
+  recordHandover,
   requestSupplement,
 } from "@/lib/server/contractInstances";
+import { HANDOVER_FIELDS, effectiveHandover, isPendingHandover } from "@/lib/server/vehicleHandover";
 import { readAsDataUrl } from "@/lib/server/blobStore";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 import { writeAudit } from "@/lib/server/audit";
@@ -102,6 +104,15 @@ export async function GET(req, { params }) {
         requiredDocs: inst.requiredDocs || [],
         supplements: inst.supplements || [],
         signature,
+        // 신차는 계약 시점에 차량번호·차대번호가 없다 — 인도 시점에 여기서 채운다.
+        handover: {
+          fields: HANDOVER_FIELDS,
+          pending: isPendingHandover(inst),
+          current: effectiveHandover(inst),
+          history: (inst.handovers || []).map((h) => ({
+            recordedAt: h.recordedAt, staff: h.staff, hash: h.hash, fields: h.fields,
+          })),
+        },
       },
     });
   } catch (e) {
@@ -138,6 +149,27 @@ export async function POST(req, { params }) {
         },
       });
       return json({ ok: true, staffVerifiedAt: inst.identity?.staffVerifiedAt || null });
+    }
+
+    if (action === "record_handover") {
+      const inst = await recordHandover(contractId, { values: body.values, staff });
+      if (!inst) return json({ ok: false, error: "계약을 찾을 수 없습니다." }, 404);
+      const last = inst.handovers[inst.handovers.length - 1];
+      await writeAudit({
+        action: "vehicle_handover_recorded",
+        actor: staff,
+        meta: {
+          contractId,
+          externalRef: inst.externalRef || "",
+          // 무엇을 적었는지가 아니라 «어떤 상태를 적었는지»가 나중에 대조 기준이 된다.
+          carNumber: last.fields.car_number || "",
+          vin: last.fields.vin || "",
+          handoverAt: last.fields.handover_datetime || "",
+          hash: last.hash,
+          ip,
+        },
+      });
+      return json({ ok: true, handovers: inst.handovers });
     }
 
     if (action === "request_supplement") {

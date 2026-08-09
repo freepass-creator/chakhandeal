@@ -101,6 +101,7 @@ export default function AdminContracts() {
   const [suppOpen, setSuppOpen] = useState(false);
   const [suppMsg, setSuppMsg] = useState("");
   const [suppItems, setSuppItems] = useState({});
+  const [handover, setHandover] = useState({});   // 인도 기재 입력 중인 값
 
   useEffect(() => {
     const s = getSession();
@@ -120,7 +121,8 @@ export default function AdminContracts() {
   useEffect(() => { if (session) load(); }, [session, load]);
 
   const open = useCallback(async (contractId) => {
-    setOpenId(contractId); setDetail(null); setErr(""); setSuppOpen(false); setSuppMsg(""); setSuppItems({});
+    setOpenId(contractId); setDetail(null); setErr("");
+    setSuppOpen(false); setSuppMsg(""); setSuppItems({}); setHandover({});
     try {
       const r = await fetch(`/api/v1/admin/contracts/${encodeURIComponent(contractId)}`, {
         headers: await authHeaders(), cache: "no-store",
@@ -385,7 +387,72 @@ export default function AdminContracts() {
                   )}
                 </div>
 
-                {/* ③ 손님이 채운 값 — 계약서와 대조할 것 */}
+                {/*
+                  ③ 차량 인도 기재 — 신차는 계약 시점에 차량번호·차대번호가 없다.
+                  계약기간도 인도일부터 세므로, 인도일이 서야 시작·종료일이 정해진다.
+                  계약 원자와 봉인 해시는 건드리지 않고 «덧붙인 사실»로만 쌓인다.
+                */}
+                {detail.handover && (
+                  <div style={{ marginTop: 12, padding: 14, border: "1px solid #e2e8ee", borderRadius: 12, background: "#fff" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 13.5, fontWeight: 800 }}>차량 인도 기재</span>
+                      <Badge tone={detail.handover.pending ? "urgent" : "done"}>
+                        {detail.handover.pending ? "미정 (신차)" : "기재됨"}
+                      </Badge>
+                    </div>
+                    <p className="sdesc" style={{ marginTop: 0 }}>
+                      계약서에는 «미정(신차)»으로 인쇄됩니다. 출고·등록 후 여기서 채우면 계약서에 반영됩니다.
+                      <b> 서명된 계약 내용과 봉인은 바뀌지 않습니다.</b>
+                    </p>
+
+                    {detail.handover.fields.map((f) => (
+                      <label key={f.key} style={{ display: "flex", gap: 10, alignItems: "center", padding: "5px 0" }}>
+                        <span style={{ flex: "0 0 108px", fontSize: 12.5, color: "#7c8a98" }}>
+                          {f.label}{f.required && <span style={{ color: "#b02a2a" }}> *</span>}
+                        </span>
+                        <input
+                          type={f.key === "handover_datetime" ? "date" : "text"}
+                          defaultValue={detail.handover.current?.[f.key] || ""}
+                          onChange={(e) => setHandover((p) => ({ ...p, [f.key]: e.target.value }))}
+                          style={{ flex: 1, padding: "7px 9px", borderRadius: 7, border: "1px solid #d9e2ea", fontSize: 13 }}
+                        />
+                      </label>
+                    ))}
+
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      disabled={busy}
+                      style={{ width: "100%", marginTop: 10 }}
+                      onClick={async () => {
+                        // 이미 적힌 값 위에 바뀐 것만 얹는다 — 안 건드린 칸이 지워지면 안 된다.
+                        const values = { ...(detail.handover.current || {}), ...handover };
+                        const r = await act("record_handover", { values });
+                        if (r) { setHandover({}); setToast("차량 인도 내용을 기재했습니다."); setTimeout(() => setToast(""), 2600); }
+                      }}
+                    >
+                      {detail.handover.pending ? "인도 기재하기" : "다시 기재하기"}
+                    </button>
+
+                    {(detail.handover.history || []).length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 12, color: "#7c8a98", marginBottom: 5 }}>
+                          기재 이력 {detail.handover.history.length}건 — 고쳐 쓰지 않고 쌓입니다
+                        </div>
+                        {detail.handover.history.map((h, i) => (
+                          <div key={i} style={{ padding: 8, background: "#f7f9fb", borderRadius: 8, marginBottom: 6, fontSize: 12.5 }}>
+                            <b>{fmt(h.recordedAt)}</b>{h.staff && ` · ${h.staff}`}
+                            <div style={{ color: "#5b6b7b" }}>
+                              {h.fields.car_number} · {h.fields.vin} · 인도 {h.fields.handover_datetime}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ④ 손님이 채운 값 — 계약서와 대조할 것 */}
                 {Object.keys(detail.inputs || {}).length > 0 && (
                   <div style={{ marginTop: 12, padding: 14, border: "1px solid #e2e8ee", borderRadius: 12, background: "#fff" }}>
                     <div style={{ fontSize: 13.5, fontWeight: 800, marginBottom: 8 }}>손님이 입력한 값</div>
