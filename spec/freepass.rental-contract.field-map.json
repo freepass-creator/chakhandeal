@@ -416,8 +416,8 @@
     {
         "field":  "over_mileage_rate",
         "label":  "초과 주행요금",
-        "from":  "정책",
-        "atom":  "mileage_upcharge_per_10000km"
+        "from":  "미정",
+        "atom":  ""
     },
     {
         "field":  "driver_age",
