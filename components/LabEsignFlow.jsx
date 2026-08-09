@@ -582,10 +582,22 @@ export default function LabEsignFlow({ payload, api = null }) {
     window.scrollTo({ top: 0 });
   }
 
+  /**
+   * 헤더는 «이 계약이 무엇인지» 한 줄로. 손님이 열자마자 「내 차, 내 계약」임을 알아야 한다.
+   * 착한거래 BI 는 세우지 않는다 — 손님은 회원사와 계약하는 것이고, 착한거래는 뒤에 있는 인프라다.
+   */
+  const vehicleRow = (pages.find((p) => p.key === "vehicle")?.rows || []);
+  const carNo = asText(vehicleRow.find((r) => asText(r.label) === "차량번호")?.value);
+  const carName = asText(vehicleRow.find((r) => asText(r.label) === "차량")?.value);
+  const headSub = [carNo, carName].filter(Boolean).join(" · ")
+    || asText(payload.externalRef);
+
   const header = (
     <FlowHeader
-      title={payload.contractKind?.title || "전자계약"}
-      sub={`${payload.memberCompany} · ${payload.externalRef}`}
+      compact
+      brand={asText(payload.member?.name) || asText(payload.memberCompany)}
+      title={asText(payload.contractKind?.title) || "자동차 대여 계약서"}
+      sub={headSub}
       steps={MACROS.length}
       step={step.macro === "done" ? MACROS.length : macroIdx + 1}
       stepLabels={MACROS.map((m) => m.label)}
@@ -626,16 +638,18 @@ export default function LabEsignFlow({ payload, api = null }) {
             <div className={s.card}>
               <div className={s.head}>
                 <span className={s.title}>{asText(payload.contractKind?.title) || "자동차 대여 계약"}</span>
-                <span className={`${s.badge} ${s.badgeReady}`}>{asText(payload.memberCompany)}</span>
+                <span className={`${s.badge} ${s.badgeReady}`}>계약 요지</span>
               </div>
               <div className={s.body}>
+                <Field label="임대인" value={asText(payload.member?.name) || asText(payload.memberCompany)} />
                 {summaryRows.map((r) => <Field key={r.label} label={r.label} value={r.value} />)}
                 <Field label="계약번호" value={payload.externalRef} />
               </div>
             </div>
 
             <p className="sdesc">
-              내용이 다르면 <b>서명하지 마시고</b> 계약 담당자에게 알려 주세요.
+              내용이 다르면 <b>서명하지 마시고</b> 계약 담당자에게 알려 주세요
+              {payload.member?.supportPhone ? ` (${asText(payload.member.supportPhone)})` : ""}.
               다음으로 넘어가면 신분증 확인과 개인정보 동의를 받습니다.
             </p>
           </>
