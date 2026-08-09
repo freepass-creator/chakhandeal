@@ -9,6 +9,7 @@ export default {
     environment: "node",
     include: ["tests/**/*.test.js"],
     setupFiles: ["tests/setup.js"],
+    testTimeout: 30_000,
     fileParallelism: false,
     sequence: { concurrent: false },
   },

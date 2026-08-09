@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { getContractInstance } from "@/lib/server/contractInstances";
 import { requireVerifiedSubject } from "@/lib/server/authz";
 import { renderContractDocument } from "@/lib/server/contractDocument";
 import { issueDocumentTicket, verifyDocumentTicket } from "@/lib/server/documentTicket";
-import { readAsDataUrl } from "@/lib/server/blobStore";
+import { readAsDataUrl, readBuffer } from "@/lib/server/blobStore";
 import { requireApiKey } from "@/lib/server/apiKeys";
 import { resolveActor } from "@/lib/server/session";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
@@ -42,8 +43,6 @@ export async function POST(req, { params }) {
   const body = await req.json().catch(() => ({}));
 
   try {
-    const inst = await loadSigned(contractId);
-
     /*
      * 계약서를 열 수 있는 사람은 셋뿐이다.
      *   ① 발행한 회원사 — ApiKey
@@ -53,21 +52,28 @@ export async function POST(req, { params }) {
      */
     const auth = await requireApiKey(req).catch(() => null);
     const admin = auth ? null : await resolveActor(req).catch(() => null);
+    const subject = auth || admin?.role === "admin"
+      ? null
+      : await requireVerifiedSubject(req, body, {
+        endpoint: `/api/v1/contract/${contractId}/document`,
+      });
+    const inst = await loadSigned(contractId);
+
     let actor;
-    if (auth?.memberCompany && auth.memberCompany === inst.memberCompany) {
+    if (auth?.memberCompany) {
+      if (auth.memberCompany !== inst.memberCompany) {
+        return NextResponse.json({ ok: false, error: "계약을 찾을 수 없습니다." }, { status: 404 });
+      }
       actor = `apikey:${auth.memberCompany}`;
     } else if (admin?.role === "admin") {
       actor = `admin:${admin.email || admin.userId || ""}`;
     } else {
-      const subject = await requireVerifiedSubject(req, body, {
-        endpoint: `/api/v1/contract/${contractId}/document`,
-      });
       // 서명한 «그 사람»인지 본다. 본인확인만 했다고 남의 계약서를 열 수는 없다.
       const signedBy = String(inst.matchKey || "");
-      if (signedBy && subject.matchKey && signedBy !== subject.matchKey) {
+      if (signedBy && subject?.matchKey && signedBy !== subject.matchKey) {
         await writeAudit({
           action: "contract_document_deny",
-          actor: subject.userId,
+          actor: subject?.userId || "",
           meta: { contractId, reason: "subject_mismatch", ip },
         });
         return NextResponse.json(
@@ -75,7 +81,7 @@ export async function POST(req, { params }) {
           { status: 403 },
         );
       }
-      actor = subject.userId;
+      actor = subject?.userId || "";
     }
 
     const { ticket, expiresAt } = issueDocumentTicket(contractId);
@@ -88,6 +94,7 @@ export async function POST(req, { params }) {
     return NextResponse.json({
       ok: true,
       url: `/api/v1/contract/${encodeURIComponent(contractId)}/document?t=${encodeURIComponent(ticket)}`,
+      pdfUrl: `/api/v1/contract/${encodeURIComponent(contractId)}/document?t=${encodeURIComponent(ticket)}&format=pdf`,
       expiresAt,
     });
   } catch (e) {
@@ -108,14 +115,58 @@ export async function GET(req, { params }) {
   const ticket = new URL(req.url).searchParams.get("t") || "";
 
   try {
-    if (!verifyDocumentTicket(ticket, contractId)) {
+    const member = await requireApiKey(req).catch(() => null);
+    const ticketAllowed = verifyDocumentTicket(ticket, contractId);
+    if (!member?.memberCompany && !ticketAllowed) {
       return new NextResponse("계약서 열람 시간이 지났습니다. 계약 링크에서 다시 열어 주세요.", {
         status: 403,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
-
     const inst = await loadSigned(contractId);
+    if (member?.memberCompany && member.memberCompany !== inst.memberCompany) {
+      return new NextResponse("계약서를 찾을 수 없습니다.", {
+        status: 404,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+
+    const wantsPdf = new URL(req.url).searchParams.get("format") === "pdf"
+      || req.headers.get("accept")?.includes("application/pdf");
+    if (wantsPdf) {
+      const pdf = await readBuffer(inst.documentPath);
+      if (!pdf) {
+        return new NextResponse("계약서 PDF가 준비되지 않았습니다.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      const actualSha256 = createHash("sha256").update(pdf).digest("hex");
+      if (!inst.documentSha256 || actualSha256 !== inst.documentSha256) {
+        await writeAudit({
+          action: "contract_document_integrity_fail",
+          actor: member?.memberCompany ? `apikey:${member.memberCompany}` : "document-ticket",
+          meta: { contractId, expected: inst.documentSha256 || "", actual: actualSha256, ip },
+        });
+        return new NextResponse("계약서 무결성 확인에 실패했습니다.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+      return new NextResponse(pdf, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="${contractId}.pdf"`,
+          "Content-Length": String(pdf.length),
+          "X-Contract-Document-SHA256": actualSha256,
+          "Cache-Control": "no-store, no-cache, must-revalidate, private",
+          "X-Robots-Tag": "noindex, nofollow, noarchive",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
+
     // 서명 이미지는 링크를 만들지 않고 문서 안에 직접 넣는다.
     const signatureImageUrl = await readAsDataUrl(inst.signaturePath);
     const html = await renderContractDocument({ ...inst, signatureImageUrl });

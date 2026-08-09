@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { rmSync, existsSync } from "fs";
+import { rmSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { POST as issuePOST } from "@/app/api/v1/contract/issue/route";
 import { GET as contractGET } from "@/app/api/v1/contract/[contractId]/route";
 import { GET as guestGET, POST as guestPOST } from "@/app/api/v1/contract/[contractId]/guest/route";
+import { GET as documentGET } from "@/app/api/v1/contract/[contractId]/document/route";
 import { resetContractInstancesForTest, getContractInstance } from "@/lib/server/contractInstances";
 import { issueIdentityToken } from "@/lib/server/identityToken";
 import { UID_HIT } from "@/lib/ids";
@@ -200,7 +201,7 @@ describe("contract guest — open / sign", () => {
     expect(j.view.consentGroups[0].rows[1].value).toBe("690,000원");
   });
 
-  it("서명 후 PNG 경로 저장 · 재오픈 blocked", async () => {
+  it("서명 후 PNG·PDF 경로 저장 · 재오픈 blocked", async () => {
     const contractId = await issue();
     await guestGET(req(`http://localhost/api/v1/contract/${contractId}/guest`), { params: { contractId } });
 
@@ -227,18 +228,56 @@ describe("contract guest — open / sign", () => {
       }),
       { params: { contractId } },
     );
-    const sign = await guestPOST(
+    const signRequest = () => guestPOST(
       req(`http://localhost/api/v1/contract/${contractId}/guest`, {
         method: "POST",
         body: { action: "sign", signature: TINY_PNG, identityToken: token },
       }),
       { params: { contractId } },
     );
+    const attempts = await Promise.all([signRequest(), signRequest()]);
+    expect(attempts.map((response) => response.status).sort()).toEqual([200, 409]);
+    const sign = attempts.find((response) => response.status === 200);
     expect(sign.status).toBe(200);
     const inst = await getContractInstance(contractId);
     expect(inst.status).toBe("signed");
     expect(inst.signaturePath).toMatch(/sig\.png/);
     expect(inst.signaturePath.startsWith("data:")).toBe(false);
+    expect(inst.documentPath).toMatch(/signed-contract\.pdf/);
+    expect(inst.documentSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(inst.documentBytes).toBeGreaterThan(100);
+
+    const status = await contractGET(
+      req(`http://localhost/api/v1/contract/${contractId}`, {
+        headers: { Authorization: `ApiKey ${API_KEY}` },
+      }),
+      { params: { contractId } },
+    );
+    const statusBody = await status.json();
+    expect(statusBody.status).toBe("signed");
+    expect(statusBody.documentReady).toBe(true);
+    expect(statusBody.documentSha256).toBe(inst.documentSha256);
+    expect(statusBody.documentUrl).toContain(`${contractId}/document?format=pdf`);
+
+    const pdfResponse = await documentGET(
+      req(`http://localhost/api/v1/contract/${contractId}/document?format=pdf`, {
+        headers: { Authorization: `ApiKey ${API_KEY}`, Accept: "application/pdf" },
+      }),
+      { params: { contractId } },
+    );
+    expect(pdfResponse.status).toBe(200);
+    expect(pdfResponse.headers.get("content-type")).toBe("application/pdf");
+    expect(pdfResponse.headers.get("x-contract-document-sha256")).toBe(inst.documentSha256);
+    expect(Buffer.from(await pdfResponse.arrayBuffer()).subarray(0, 5).toString("ascii")).toBe("%PDF-");
+
+    writeFileSync(join(process.cwd(), ".data", inst.documentPath), Buffer.from("%PDF-corrupted"));
+    const corrupted = await documentGET(
+      req(`http://localhost/api/v1/contract/${contractId}/document?format=pdf`, {
+        headers: { Authorization: `ApiKey ${API_KEY}`, Accept: "application/pdf" },
+      }),
+      { params: { contractId } },
+    );
+    expect(corrupted.status).toBe(503);
 
     const again = await guestGET(
       req(`http://localhost/api/v1/contract/${contractId}/guest`),
@@ -247,5 +286,19 @@ describe("contract guest — open / sign", () => {
     const aj = await again.json();
     expect(aj.blocked).toBe(true);
     expect(aj.reason).toBe("signed");
+  }, 30_000);
+
+  it("문서 인증 전에는 계약 존재·서명 상태를 구분해 주지 않는다", async () => {
+    const contractId = await issue();
+    const existing = await documentGET(
+      req(`http://localhost/api/v1/contract/${contractId}/document?format=pdf`),
+      { params: { contractId } },
+    );
+    const missing = await documentGET(
+      req("http://localhost/api/v1/contract/chd_missing/document?format=pdf"),
+      { params: { contractId: "chd_missing" } },
+    );
+    expect(existing.status).toBe(403);
+    expect(missing.status).toBe(403);
   });
 });

@@ -62,6 +62,12 @@ export async function POST(req) {
     });
     return NextResponse.json({
       contractId: instance.contractId,
+      /*
+       * 운영 결정(2026-08-09): 현재 전자계약은 «링크 발급·관리자 직접 전달» 방식이다.
+       * 착한거래는 SMS/카카오를 발송하지 않으며 `/contract/{id}/send` API도 제공하지 않는다.
+       * 연동 ERP는 이 signUrl을 저장한 뒤 관리자 화면에서 복사할 수 있게 해야 한다.
+       * verifyUrl은 서명 완료 후 봉인 결과를 확인하는 주소이므로 서명 링크로 쓰지 않는다.
+       */
       // 손님에게 나가는 링크는 «회원사 도메인» 우선. 처음 보는 도메인이면 피싱으로 읽힌다.
       signUrl: buildSignUrl(origin, instance.contractId, instance.memberCompany),
       expiresAt: instance.expiresAt,

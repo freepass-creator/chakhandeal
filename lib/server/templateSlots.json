@@ -690,7 +690,7 @@
         },
         {
           "field": "accident_termination_count",
-          "label": "사고 누적 해지",
+          "label": "1년 이내 사고 누적",
           "from": "정책",
           "atom": "accident_termination_count"
         },
