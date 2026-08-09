@@ -44,5 +44,24 @@ service cloud.firestore {
     match /company_keys/{id} {
       allow read, create, update, delete: if false;
     }
+
+    /**
+     * 전자계약 인스턴스 — 계약 내용 · 손님 입력 · 동의 · 봉인(atoms/a4/certificate).
+     * 손님 화면도 **서버 API를 거쳐서만** 읽는다(추측 불가한 contractId 가 열쇠).
+     * 클라이언트가 Firestore 를 직접 읽게 두면 링크 하나로 계약 전문이 새 나간다.
+     */
+    match /contracts/{id} {
+      allow read, create, update, delete: if false;
+    }
+
+    // 테스트 렌더러(/labs)가 남기는 것 — 운영에서는 쓰지 않는다.
+    match /lab_contracts/{id} {
+      allow read, create, update, delete: if false;
+    }
+
+    // 매치되지 않은 경로도 기본 거부다. 새 컬렉션을 만들면 «여기에» 규칙을 적는다.
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }

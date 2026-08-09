@@ -1,0 +1,9 @@
+{
+    "firestore":  {
+                      "rules":  "firestore.rules"
+                  },
+    "storage":  {
+                    "bucket":  "chakhandeal-contracts",
+                    "rules":  "storage.rules"
+                }
+}

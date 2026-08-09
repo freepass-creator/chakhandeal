@@ -39,3 +39,6 @@ yarn-error.log*
 /제안서.html
 /제안서/
 *.pdf
+
+# 배포 토큰 — 커밋 금지
+.vercel-token
