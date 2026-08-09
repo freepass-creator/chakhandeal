@@ -42,3 +42,6 @@ yarn-error.log*
 
 # 배포 토큰 — 커밋 금지
 .vercel-token
+
+.vercel
+.env*

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import LabEsignFlow from "@/components/LabEsignFlow";
 
@@ -78,7 +78,19 @@ function useContractApi(contractId, tokenRef) {
   }), [post, contractId]);
 }
 
+/**
+ * `useSearchParams()` 는 프리렌더 단계에서 값을 알 수 없어 Suspense 경계가 필요하다.
+ * 없으면 빌드가 «missing-suspense-with-csr-bailout» 으로 실패한다.
+ */
 export default function SignPage() {
+  return (
+    <Suspense fallback={<div className="app"><div className="c-body"><div className="skel" /><div className="skel" /></div></div>}>
+      <SignFlow />
+    </Suspense>
+  );
+}
+
+function SignFlow() {
   const params = useSearchParams();
   const contractId = params.get("c") || "";
   const [view, setView] = useState(null);
