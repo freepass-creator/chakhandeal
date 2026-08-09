@@ -91,7 +91,9 @@ export default function ContractReader({
           onChange={(e) => onAgreedChange?.(e.target.checked)}
         />
         <span>
-          위 <b>{template.title}</b> 내용을 모두 읽었으며, 전자계약 조건에 동의합니다.
+          {template.confirmLabel || (
+            <>위 <b>{template.title}</b> 내용을 모두 읽었으며, 전자계약 조건에 동의합니다.</>
+          )}
         </span>
       </label>
     </div>

@@ -1,0 +1,298 @@
+/*
+ * 전자계약 손님 화면 — «내용을 담는 그릇».
+ * 색·라운드는 globals.css 토큰만 쓴다(--radius 8px 단일값 규칙 포함).
+ *
+ * 핵심 규칙 (2026-08-08 사장님 확정)
+ *   **모든 항목을 같은 양식으로 담는다.** 항목명이 위, 값이 아래.
+ *   값이 「무한」 한 단어든 세 줄짜리 설명이든 그릇은 하나다.
+ *   좌우 정렬(라벨 왼쪽·값 오른쪽)은 긴 문장에서 깨지지만, 위아래로 쌓으면 안 깨진다.
+ *   구분은 «섹션»이 한다 — 카드로 끊고, 카드마다 확인을 받는다.
+ */
+
+/* ── 진행 (계약서 상단 고정) ───────────────────────── */
+.progress {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 0 14px;
+  padding: 9px 0 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.progressRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.progressNum {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -.2px;
+}
+.progressLeft {
+  font-size: 12px;
+  color: var(--ink3);
+}
+.bar {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--safe);
+  transition: width .25s ease;
+}
+
+/* ── 섹션 카드 ───────────────────────────────────── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color .18s ease, opacity .18s ease;
+}
+/* 확인 완료 — 가라앉힌다. 지우지는 않는다(다시 볼 수 있어야 한다). */
+.cardDone {
+  border-color: var(--safe);
+  opacity: .72;
+}
+/* 아직 안 내려온 카드 — 체크가 잠겨 있음을 테두리로도 알린다. */
+.cardLocked {
+  border-style: dashed;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line2);
+  background: var(--white);
+}
+.title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -.3px;
+}
+.badge {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+.badgeWait { background: var(--line2); color: var(--ink3); }
+.badgeReady { background: var(--navy50); color: var(--navy); }
+.badgeDone { background: var(--safe50); color: var(--safe3); }
+
+.note {
+  margin: 0;
+  padding: 10px 14px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink2);
+}
+
+.body { padding: 2px 14px 12px; }
+
+/*
+ * ── 단 하나의 양식 ────────────────────────────────
+ * 항목명(위) + 값(아래). 무엇이 오든 이 그릇에 담는다.
+ */
+.field {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line2);
+}
+.field:last-child { border-bottom: 0; }
+
+.fk {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink3);
+  letter-spacing: -.1px;
+}
+.fv {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.5;
+  letter-spacing: -.2px;
+  word-break: keep-all;
+  font-variant-numeric: tabular-nums;
+}
+/* 값이 문장일 때 — 그릇은 같고 굵기만 낮춘다. 세 줄짜리를 굵게 두면 읽히지 않는다. */
+.fvLong {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+/*
+ * ── 보험만 예외 ──────────────────────────────────
+ * 「대인 보상한도 / 대인 면책금」은 짝이다. 세로로 쌓으면 무엇과 무엇이 한 쌍인지
+ * 안 보인다. 보험에서만 행=담보, 열=보상한도·면책금 으로 세운다.
+ */
+.matrixWrap {
+  overflow-x: auto;
+  margin: 10px 0 2px;
+}
+.matrix {
+  width: 100%;
+  border-collapse: collapse;
+}
+.matrix th,
+.matrix td {
+  padding: 9px 6px;
+  text-align: right;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.matrix thead th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink3);
+  border-bottom: 1px solid var(--line);
+}
+.matrix tbody td {
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line2);
+}
+.matrix tbody tr:last-child td { border-bottom: 0; }
+.matrix th:first-child,
+.matrix td:first-child {
+  text-align: left;
+  padding-left: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink3);
+}
+/* 빈 칸은 «—» 로 채우지 않는다 — 없는 보장을 있는 것으로 읽히게 하면 안 된다. */
+.matrixEmpty { color: var(--line); }
+
+/* ── 첨부 ────────────────────────────────────────── */
+.thumbWrap {
+  margin-top: 11px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.thumb {
+  width: 76px;
+  height: 76px;
+  flex: none;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--line2);
+}
+.thumbFile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--line2);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink3);
+}
+.thumbMeta {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ink3);
+}
+
+/*
+ * ── 동의 ─────────────────────────────────────────
+ * 한 카드에서 쭉 받되, 하나씩 끊는다. 동의 사이의 경계가 흐리면
+ * 「어디까지가 이 동의인지」가 안 보여서 뭉뚱그려 누르게 된다.
+ */
+.consentItem {
+  padding: 4px 0 14px;
+  border-bottom: 2px solid var(--line);
+}
+.consentItem:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+.consentNo {
+  display: inline-block;
+  margin: 14px 0 2px;
+  padding: 2px 7px;
+  border-radius: var(--radius);
+  background: var(--navy50);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--navy);
+}
+.consentTitle {
+  margin: 3px 0 2px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -.3px;
+}
+.ackRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ── 카드 하단 — «이 카드에 대한» 동의임이 보이게 붙인다 ── */
+.foot {
+  padding: 11px 14px;
+  border-top: 1px solid var(--line2);
+  background: var(--line2);
+}
+.footDone { background: var(--safe50); }
+
+/* ── 약관 ────────────────────────────────────────── */
+.art {
+  margin-bottom: 15px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line2);
+}
+.art:last-of-type { border-bottom: 0; }
+.artT {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--navy);
+  margin-bottom: 5px;
+  letter-spacing: -.2px;
+}
+.artB {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink2);
+  white-space: pre-line;
+}
+.end {
+  text-align: center;
+  padding: 14px 0 16px;
+  font-size: 12px;
+  color: var(--ink3);
+}

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req) {
   try {
-    const sp = req.nextUrl.searchParams;
+    const sp = req.nextUrl?.searchParams || new URL(req.url).searchParams;
     const vertical = sp.get("vertical") || DEFAULT_VERTICAL;
     const code = (sp.get("code") || "").replace(/\D/g, "");
     const contractId = sp.get("contract") || "";

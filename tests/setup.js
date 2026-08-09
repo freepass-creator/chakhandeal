@@ -7,3 +7,4 @@ process.env.PII_KEK_VERSION = process.env.PII_KEK_VERSION || "test-v1";
 process.env.PHONE_LOOKUP_SECRET = process.env.PHONE_LOOKUP_SECRET || "test-phone-lookup-secret-32ch";
 process.env.COMPANY_TOKEN_SECRET = process.env.COMPANY_TOKEN_SECRET || "test-company-token-secret-32ch";
 process.env.NEXT_PUBLIC_DEMO_MODE = "true";
+process.env.DEMO_MEMBER_API_KEYS = process.env.DEMO_MEMBER_API_KEYS || "freepass:test-freepass-api-key,otherco:test-other-api-key";

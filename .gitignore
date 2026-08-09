@@ -15,6 +15,9 @@
 *.pem
 Thumbs.db
 
+# 로컬 영속 스토어 (Firebase 없을 때 계약 인스턴스·블롭)
+.data/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

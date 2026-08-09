@@ -12,12 +12,14 @@ import SignaturePad from "@/components/SignaturePad";
 import StepFooter from "@/components/StepFooter";
 import FlowHeader from "@/components/FlowHeader";
 import ContractReader from "@/components/ContractReader";
+import InstanceConsentFlow from "@/components/InstanceConsentFlow";
 import { VerifiedCard, ConsentClauses, CertBadge } from "@/components/VerifyParts";
 
 /**
  * 통상 온라인 동의 절차
  * 기본: 대상 → 본인확인 → 동의 → 서명 → 완료
  * 전자계약: 동의 단계에서 계약서 열람 게이트 후 착한거래 동의
+ * 인스턴스: ?c={contractId} → InstanceConsentFlow
  */
 const STEP_LABELS = ["대상", "본인확인", "동의", "서명", "완료"];
 
@@ -31,6 +33,8 @@ function consentStep({ target, started, verified, signing, done }) {
 
 export default function SelfConsentPage() {
   const router = useRouter();
+  const [instanceId, setInstanceId] = useState(null);
+  const [boot, setBoot] = useState(true);
   const [code, setCode] = useState("");
   const [target, setTarget] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -61,17 +65,26 @@ export default function SelfConsentPage() {
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
+    const cInst = (q.get("c") || "").trim();
+    if (cInst) {
+      setInstanceId(cInst);
+      setBoot(false);
+      return;
+    }
     const c = (q.get("code") || "").replace(/\D/g, "");
     const kind = normalizeAgreementKind(q.get("agreement") || AGREEMENT_KINDS.PLATFORM_CONSENT);
     setAgreementKind(kind);
     setRequestedContractId(q.get("contract") || "");
-    if (!c) return;
+    if (!c) {
+      setBoot(false);
+      return;
+    }
     setCode(c);
-    findMemberByCode(c).then((m) => { if (m) setTarget(m); }).catch(() => {});
+    findMemberByCode(c).then((m) => { if (m) setTarget(m); }).catch(() => {}).finally(() => setBoot(false));
   }, []);
 
   useEffect(() => {
-    if (!isEContract || !target) return;
+    if (instanceId || !isEContract || !target) return;
     let cancelled = false;
     (async () => {
       setContractLoading(true);
@@ -99,7 +112,15 @@ export default function SelfConsentPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [isEContract, target, requestedContractId, code]);
+  }, [instanceId, isEContract, target, requestedContractId, code]);
+
+  if (boot) {
+    return <div className="app"><div className="c-body"><div className="skel" /><div className="skel" /></div></div>;
+  }
+
+  if (instanceId) {
+    return <InstanceConsentFlow contractId={instanceId} />;
+  }
 
   async function lookup() {
     setErr("");
@@ -198,6 +219,7 @@ export default function SelfConsentPage() {
         vertical: target.vertical || "",
         verified: { name: verified.name, birth: verified.birth, method: verified.method },
         signed: !!(sig || DEMO_MODE),
+        signature: sig || "",
         idImage: verified.idImage || "",
         faceImage: verified.faceImage || "",
         identityToken: verified.identityToken || "",

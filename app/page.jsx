@@ -35,6 +35,15 @@ export default function Landing() {
             <span className="lc-arrow">→</span>
           </button>
 
+          <button type="button" className="land-card" onClick={tap(() => router.push("/consent/sample"))}>
+            <span className="lc-ic"><Icon name="file" size={22} /></span>
+            <span className="lc-tx">
+              <b>전자계약 샘플 (폰)</b>
+              <span>인적사항·차량·대여·보험을 단계로 확인하고 서명합니다.</span>
+            </span>
+            <span className="lc-arrow">→</span>
+          </button>
+
           <button type="button" className="land-card" onClick={tap(() => router.push("/go"))}>
             <span className="lc-ic"><Icon name="send" size={22} /></span>
             <span className="lc-tx">
