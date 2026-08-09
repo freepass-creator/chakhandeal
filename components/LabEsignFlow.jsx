@@ -561,6 +561,12 @@ export default function LabEsignFlow({ payload, api = null }) {
     window.scrollTo({ top: 0 });
   }, [prevIdx]);
 
+  /** 시작 전 취소는 유입 화면으로 돌아가고, 직접 연 링크라면 착한거래 홈으로 보낸다. */
+  const cancelBeforeStart = useCallback(() => {
+    if (window.history.length > 1) window.history.back();
+    else window.location.assign("/");
+  }, []);
+
   function canNext() {
     if (step.kind === "summary") return true;
     if (step.kind === "consent") return upfrontConsentsOk;
@@ -931,7 +937,9 @@ export default function LabEsignFlow({ payload, api = null }) {
 
       {step.kind !== "done" && (
         <StepFooter
-          prev={prevIdx === null ? null : { onClick: goPrev, disabled: busy }}
+          prev={prevIdx === null
+            ? (step.kind === "summary" ? { label: "취소", onClick: cancelBeforeStart, disabled: busy } : null)
+            : { onClick: goPrev, disabled: busy }}
           next={{ label: nextLabel, onClick: next, disabled: busy || !canNext() }}
         />
       )}
