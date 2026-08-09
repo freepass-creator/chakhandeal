@@ -109,8 +109,15 @@ describe("contract issue — M2M + 멱등", () => {
     expect(r1.status).toBe(200);
     const j1 = await r1.json();
     expect(j1.contractId).toMatch(/^chd_/);
-    // 전자계약 손님 링크는 `/sign` 이다 — `/consent?code=` 는 «플랫폼 동의»의 박제 URL이라 성격이 다르다.
-    expect(j1.signUrl).toContain(`/sign?c=${j1.contractId}`);
+    /*
+     * 손님 링크는 «가장 짧은» 형태다 — 도메인이 이미 `sign.` 이라 경로에 sign 을 또 붙이지 않고
+     * `chd_` 접두사도 뺀다. 카톡 한 줄에 들어가야 한다.
+     * 다만 여기서 더 줄이면 안 된다(계약번호 같은 추측 가능한 값 금지) — 길이를 함께 검증한다.
+     */
+    const short = j1.contractId.replace(/^chd_/, "");
+    expect(j1.signUrl).toContain(`/${short}`);
+    expect(j1.signUrl).not.toContain("/sign?c=");
+    expect(short.length).toBeGreaterThanOrEqual(18);
     expect(j1.verifyUrl).toBe("");
     expect(j1.expiresAt).toBeGreaterThan(Date.now());
 
