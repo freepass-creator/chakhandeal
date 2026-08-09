@@ -679,9 +679,10 @@
       "member": "freepass",
       "hasFieldMap": true,
       "sheets": 14,
-      "slotCount": 142,
+      "slotCount": 143,
       "unspecified": [
-        "키"
+        "키",
+        "payment_day"
       ],
       "orphanSpec": [],
       "slots": [
@@ -1383,6 +1384,9 @@
           "label": "대여료 결제주기",
           "from": "고정",
           "atom": ""
+        },
+        {
+          "field": "payment_day"
         },
         {
           "field": "product_label",
