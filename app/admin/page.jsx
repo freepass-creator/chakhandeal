@@ -111,6 +111,22 @@ export default function Admin() {
           <div className="stat-box"><div className="v">{pending.length}</div><div className="k">소명 대기</div></div>
         </div>
 
+        {/*
+          전자계약 확인 — 신분증·얼굴을 눈으로 대조하는 자리는 화면이 따로 있다.
+          사진이 여러 장 뜨는 화면이라 이 목록 안에 섞으면 둘 다 못 쓴다.
+        */}
+        <button
+          type="button"
+          className="card"
+          onClick={() => router.push("/admin/contracts")}
+          style={{ display: "block", width: "100%", textAlign: "left", cursor: "pointer" }}
+        >
+          <div className="card-title">전자계약 확인 →</div>
+          <div style={{ fontSize: 13, color: "var(--ink3)" }}>
+            서명된 계약의 신분증·얼굴을 대조하고 본인확인을 기록합니다.
+          </div>
+        </button>
+
         {/* 회원사 가입 승인 */}
         <div className="card">
           <div className="card-title">회원사 가입 승인 <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink3)" }}>· 대기 {members.length}건</span></div>

@@ -5,6 +5,7 @@ import { renderContractDocument } from "@/lib/server/contractDocument";
 import { issueDocumentTicket, verifyDocumentTicket } from "@/lib/server/documentTicket";
 import { readAsDataUrl } from "@/lib/server/blobStore";
 import { requireApiKey } from "@/lib/server/apiKeys";
+import { resolveActor } from "@/lib/server/session";
 import { rateLimit, clientIp } from "@/lib/server/rateLimit";
 import { writeAudit } from "@/lib/server/audit";
 
@@ -43,11 +44,20 @@ export async function POST(req, { params }) {
   try {
     const inst = await loadSigned(contractId);
 
-    // ① 회원사(발행처)는 ApiKey 로. ② 손님은 본인확인 토큰으로.
+    /*
+     * 계약서를 열 수 있는 사람은 셋뿐이다.
+     *   ① 발행한 회원사 — ApiKey
+     *   ② 관리자 — 공급사가 아직 시스템을 못 쓰므로 확인을 대신한다
+     *   ③ 서명한 본인 — 본인확인 토큰
+     * 그 밖에는 링크를 알아도 열리지 않는다.
+     */
     const auth = await requireApiKey(req).catch(() => null);
+    const admin = auth ? null : await resolveActor(req).catch(() => null);
     let actor;
     if (auth?.memberCompany && auth.memberCompany === inst.memberCompany) {
       actor = `apikey:${auth.memberCompany}`;
+    } else if (admin?.role === "admin") {
+      actor = `admin:${admin.email || admin.userId || ""}`;
     } else {
       const subject = await requireVerifiedSubject(req, body, {
         endpoint: `/api/v1/contract/${contractId}/document`,
